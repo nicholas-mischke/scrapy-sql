@@ -1,0 +1,30 @@
+
+[tool.poetry]
+name = "scrapy_sql"
+version = "0.1.0"
+description = ""
+authors = ["Nicholas Mischke <nmischkework@proto.me>"]
+readme = "README.md"
+license = "LICENSE"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+packages = [{include = "scrapy_sql"}]
+
+[tool.poetry.dependencies]
+python = "^3.8"
+typer = {extras = ["all"], version = "^0.7.0"}
+pytest = {extras = ["all"], version = "^7.2.0"}
+
+[tool.poetry.scripts]
+scrapy-sql = "scrapy_sql.commands.cmdline:app"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[project.urls]
+"Homepage"    = "https://github.com/pypa/scrapy_sql"
+"Bug Tracker" = "https://github.com/pypa/scrapy_sql/issues"
