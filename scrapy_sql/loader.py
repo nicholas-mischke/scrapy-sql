@@ -8,10 +8,10 @@ from sqlalchemy.types import (
     TIME, Time, TIMESTAMP
 )
 
-import sessions
+import scrapy_sql.sessions as sessions
 
 
-date_types = (DATE, Date, DATETIME, DateTime, TIME, Time, TIMESTAMP)
+DATE_TYPES = (DATE, Date, DATETIME, DateTime, TIME, Time, TIMESTAMP)
 
 
 class TableLoader(ItemLoader):
@@ -40,7 +40,7 @@ class TableLoader(ItemLoader):
         # This for loop avoids a mis-filtering on DATE types in SQLite.
         # https://gist.github.com/danielthiel/8374607
         for c in table.columns:
-            if isinstance(c.type, date_types):
+            if isinstance(c.type, DATE_TYPES):
                 del filter_kwargs[c.name]
                 # filter_kwargs[c.name] = func.DATE(c)
 

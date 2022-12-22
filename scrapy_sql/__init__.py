@@ -7,8 +7,11 @@ from .loader import TableLoader
 from .sessions import databases_info, session
 
 __all__ = [
+    # tableadapter
     'ScrapyDeclarativeMetaAdapter',
     'SQLAlchemyTableExporter',
+
+    #
     'SQLAlchemyFeedStorage',
     'SQLAlchemySQLiteFeedStorage',
     'TableLoader',

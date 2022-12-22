@@ -24,12 +24,14 @@ def get_sqlalchemy_connection_strings():
 
 
 databases_info = {}
+
 # Allow connection to multiple databases
 # https://docs.sqlalchemy.org/en/14/orm/persistence_techniques.html#session-partitioning
 base_engine_mapping = {}
 
 for conn_str in get_sqlalchemy_connection_strings():
-    engine = create_engine(conn_str)
+
+    engine = create_engine(conn_str, echo=False)
     database = get_database_name(engine)
     Base = declarative_base()
     metadata = Base.metadata

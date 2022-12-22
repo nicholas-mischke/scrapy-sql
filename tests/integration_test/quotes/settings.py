@@ -19,9 +19,6 @@ FEED_EXPORTERS = {
 FEEDS = {
     'sqlite:///quotes.db': {
         'format': 'sql'
-    },
-    'quotes.json': {
-        'format': 'json'
     }
 }
 

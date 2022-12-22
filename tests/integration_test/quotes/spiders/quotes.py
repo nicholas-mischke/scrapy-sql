@@ -41,7 +41,7 @@ class QuotesSpider(CrawlSpider):
                 loader.add_value('name', tag)
                 tag_row = loader.load_table()
 
-                # quote_row.tags.append(tag_row)
+                quote_row.tags.append(tag_row)
                 yield tag_row
 
             yield quote_row

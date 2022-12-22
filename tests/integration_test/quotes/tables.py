@@ -44,7 +44,7 @@ class Quote(Base, ScrapyDeclarativeMetaAdapter):
 
     # author_id = Column(ForeignKey('author.id'))
     # author = relationship('Author')
-    # tags = relationship('Tag', secondary='quote_tag')
+    tags = relationship('Tag', secondary='quote_tag')
 
 
 class Tag(Base, ScrapyDeclarativeMetaAdapter):

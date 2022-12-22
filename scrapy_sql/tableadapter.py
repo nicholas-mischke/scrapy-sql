@@ -1,5 +1,5 @@
 
-from sqlalchemy.inspection import inspect
+# For Item Adapters
 from sqlalchemy import Table
 from sqlalchemy.orm.decl_api import DeclarativeMeta
 
@@ -46,9 +46,6 @@ class _MixinColumnSQLAlchemyAdapter:
 class SQLAlchemyTableAdapter(_MixinColumnSQLAlchemyAdapter, AdapterInterface):
     """
     https://github.com/scrapy/itemadapter#extending-itemadapter
-
-    Args:
-        AdapterInterface (_type_): _description_
     """
 
     accepted_classes = (
@@ -95,7 +92,7 @@ class SQLAlchemyTableAdapter(_MixinColumnSQLAlchemyAdapter, AdapterInterface):
 
     def field_names(self) -> KeysView:
         """
-        Return a dynamic view of the able's column names. By default, this
+        Return a dynamic view of the table's column names. By default, this
         method returns the result of calling keys() on the current adapter,
         i.e., its return value depends on the implementation of the methods
         from the MutableMapping interface (more specifically, it depends on the
@@ -130,11 +127,6 @@ class ScrapyDeclarativeMetaAdapter:
     @property
     def columns(self):
         return self.__table__.columns
-
-    def relationship_attrs(self):
-        attr_names = [x[0] for x in inspect(type(self)).relationships.items()]
-        attr_values = [getattr(self, attr) for attr in attr_names]
-        return dict(zip(attr_names, attr_values))
 
     def asdict(self):
         keys = self.columns.keys()
