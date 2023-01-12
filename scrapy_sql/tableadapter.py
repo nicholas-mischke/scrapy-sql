@@ -9,6 +9,44 @@ from collections.abc import KeysView
 from typing import Any, Iterator, Optional, List
 
 
+
+class ScrapyDeclarativeMetaAdapter:
+    """
+    Scrapy default logging of an item writes the item to the log file, in a
+    format identical to str(my_dict).
+
+    sqlalchemy.orm.decl_api.DeclarativeMeta classes use
+    sqlalchemy.ext.declarative.declarative_base() classes as parent classes.
+
+    If sqlalchemy.orm.decl_api.DeclarativeMeta classes instead have dual
+    inheritence by adding this class Scrapy logging output can behave
+    normally by utilizing this classes' __repr__ method
+    """
+    @property
+    def columns(self):
+        return self.__table__.columns
+
+    @property
+    def column_names(self):
+        return tuple(column.name for column in self.columns)
+
+    def asdict(self):
+        values = [getattr(self, column) for column in self.column_names]
+        return dict(zip(self.column_names, values))
+
+    def __repr__(self):
+        result = f"{self.__class__.__name__}("
+        for column, column_value in self.asdict().items():
+            if isinstance(column_value, str):
+                result += f"{column}='{column_value}', "
+            else:  # No quotation marks if not a string
+                result += f"{column}={column_value}, "
+        return result.strip(", ") + ")"
+
+    def __str__(self):
+        return self.__repr__()
+
+
 class _MixinColumnSQLAlchemyAdapter:
 
     _fields_dict: dict
@@ -34,7 +72,6 @@ class _MixinColumnSQLAlchemyAdapter:
         This needs to be defined for scrapy to work.
         """
         return None
-        # del self.item[field_name]
 
     def __iter__(self) -> Iterator:
         return iter(self.asdict())
@@ -79,12 +116,10 @@ class SQLAlchemyTableAdapter(_MixinColumnSQLAlchemyAdapter, AdapterInterface):
         Returns:
             boolean: _description_
         """
-        return item_class in SQLAlchemyTableAdapter.accepted_classes
-
-        # for item_class in SQLAlchemyTableAdapter.accepted_classes:
-        #     if item_class == item_class:
-        #         return True
-        # return False
+        return (
+            isinstance(item_class, SQLAlchemyTableAdapter.accepted_classes)
+            or item_class in SQLAlchemyTableAdapter.accepted_classes
+        )
 
     @classmethod
     def get_field_names_from_class(cls, item_class: type) -> Optional[List[str]]:
@@ -112,35 +147,3 @@ class SQLAlchemyTableAdapter(_MixinColumnSQLAlchemyAdapter, AdapterInterface):
         return self.item.asdict()
 
 
-class ScrapyDeclarativeMetaAdapter:
-    """
-    Scrapy default logging of an item writes the item to the log file, in a
-    format identical to str(my_dict).
-
-    sqlalchemy.orm.decl_api.DeclarativeMeta classes use
-    sqlalchemy.ext.declarative.declarative_base() classes as parent classes.
-
-    If sqlalchemy.orm.decl_api.DeclarativeMeta classes instead have dual
-    inheritence by adding this class Scrapy logging output can behave
-    normally by utilizing this classes' __repr__ method
-    """
-    @property
-    def columns(self):
-        return self.__table__.columns
-
-    def asdict(self):
-        keys = self.columns.keys()
-        values = [getattr(self, key) for key in keys]
-        return dict(zip(keys, values))
-
-    def __repr__(self):
-        result = f"{self.__class__.__name__}("
-        for column, column_value in self.asdict().items():
-            if isinstance(column_value, str):
-                result += f"{column}='{column_value}', "
-            else:  # No quotation marks if not a string
-                result += f"{column}={column_value}, "
-        return result.strip(", ") + ")"
-
-    def __str__(self):
-        return self.__repr__()

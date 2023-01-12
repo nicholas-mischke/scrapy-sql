@@ -27,12 +27,12 @@ class QuotesSpider(CrawlSpider):
     )
 
     def parse_quotes(self, response):
+
         for quote in response.xpath('//div[@class="quote"]'):
             loader = QuoteLoader(selector=quote)
 
             loader.add_xpath('quote',  './/span[@class="content"]/text()')
             loader.add_xpath('author', './/a[@class="author"]/text()')
-            # loader.add_xpath('tags',   './/span[@class="tag"]/text()')
 
             quote_row = loader.load_table()
 

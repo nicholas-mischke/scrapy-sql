@@ -12,10 +12,11 @@ from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Table, Tex
 from sqlalchemy.orm import relationship
 
 from scrapy_sql import (
-    TableLoader,
     ScrapyDeclarativeMetaAdapter,
     databases_info
 )
+from scrapy_sql.loader import TableLoader
+
 
 
 database = databases_info.get('quotes')
@@ -66,8 +67,8 @@ metadata.create_all(engine)
 
 class TakeAll():
     """
-    ItemLoader processors that returns the list
-    the ItemLoader holds internally.
+    TableLoader processors that returns the list
+    the TableLoader holds internally.
     """
 
     def __call__(self, values):

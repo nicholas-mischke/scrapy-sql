@@ -1,7 +1,8 @@
 
 from scrapy.exporters import BaseItemExporter
-from scrapy.utils.misc import load_object
 
+def _add(session, table):
+    session.add(table)
 
 class SQLAlchemyTableExporter(BaseItemExporter):
     def __init__(self, session, **kwargs):
@@ -26,12 +27,13 @@ class SQLAlchemyTableExporter(BaseItemExporter):
             dont_fail=kwargs.get('dont_fail', True),
             **kwargs
         )
+
         self.session = session
-        self.add = kwargs.get('sqlalchemy_add', None)
+
+        self.add = kwargs.get('sqlalchemy_add')
+        if self.add is None:
+            self.add = _add
 
     def export_item(self, table):
-        if self.add is not None:
-            self.add(self.session, table)
-        else:
-            if table not in self.session:
-                self.session.add(table)
+        self.add(self.session, table)
+

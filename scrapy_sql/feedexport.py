@@ -1,21 +1,22 @@
 
 from scrapy.extensions.feedexport import BlockingFeedStorage, build_storage
 from scrapy.utils.misc import load_object
-import scrapy_sql.sessions as sessions
+
+import scrapy_sql
+from scrapy_sql.sessions import create_new_session
 
 
-def _commit(sqlalchemy_commit, session):
-    if sqlalchemy_commit is not None:
-        sqlalchemy_commit(session)
-    else:
-        session.commit()
-        session.close()
+def _default_store_method(session):
+    session.commit()
+    session.close()
 
 
 class SQLAlchemyFeedStorage(BlockingFeedStorage):
 
     @classmethod
     def from_crawler(cls, crawler, uri, *, feed_options=None):
+
+        feed_options.setdefault('item_export_kwargs', {})
 
         add = (
             feed_options.get('item_export_kwargs').get('sqlalchemy_add', None)
@@ -47,19 +48,17 @@ class SQLAlchemyFeedStorage(BlockingFeedStorage):
 
     def __init__(self, uri, *, store_method=None, feed_options=None):
         self.uri = uri
-        self.feed_options = feed_options
         self.store_method = store_method
+        self.feed_options = feed_options
 
     def open(self, spider):
         """
         Typically opens a file, or file like object and returns it.
         This obj is passed to the constructor of the ItemExporter class
         """
-        # The session returned by this method is the crawl's active session
-        # meaning it's used for exporting & via loader.TableLoader.load_table method
-        active_session = sessions.create_new_session()
-        sessions.session = active_session
-        return active_session
+        session = create_new_session()
+        scrapy_sql.sessions.session = session
+        return session
 
     def _store_in_thread(self, session):
         """
@@ -68,11 +67,14 @@ class SQLAlchemyFeedStorage(BlockingFeedStorage):
 
         Called from store(self, session) of parent class
         """
-        _commit(self.store_method, session)
+        if self.store_method is not None:
+            self.store_method(session)
+        else:
+            _default_store_method(session)
 
 
 # SQLite is not thread safe
 class SQLAlchemySQLiteFeedStorage(SQLAlchemyFeedStorage):
 
     def store(self, session):
-        _commit(self.store_method, session)
+        super()._store_in_thread(session)

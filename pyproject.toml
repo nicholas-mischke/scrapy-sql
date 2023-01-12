@@ -19,6 +19,7 @@ typer = {extras = ["all"], version = "^0.7.0"}
 pytest = {extras = ["all"], version = "^7.2.0"}
 scrapy = "2.7.1"
 sqlalchemy = "1.4.44"
+pytest-mock = "^3.10.0"
 
 [tool.poetry.scripts]
 scrapy-sql = "scrapy_sql.commands.cmdline:app"
