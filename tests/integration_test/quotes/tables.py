@@ -13,16 +13,15 @@ from sqlalchemy.orm import relationship
 
 from scrapy_sql import (
     ScrapyDeclarativeMetaAdapter,
-    databases_info
+    connection_info
 )
-from scrapy_sql.loader import TableLoader
+# from scrapy_sql.loader import TableLoader
+from scrapy.loader import ItemLoader
 
 
-
-database = databases_info.get('quotes')
+database = connection_info.get('quotes')
 engine = database.get('engine')
 Base = database.get('Base')
-metadata = Base.metadata
 
 
 class Author(Base, ScrapyDeclarativeMetaAdapter):
@@ -39,12 +38,11 @@ class Quote(Base, ScrapyDeclarativeMetaAdapter):
     __tablename__ = 'quote'
 
     id = Column(Integer, primary_key=True)
+    author_id = Column(ForeignKey('author.id'))
 
     quote = Column(Text)
-    author = Column(Text)
 
-    # author_id = Column(ForeignKey('author.id'))
-    # author = relationship('Author')
+    author = relationship('Author')
     tags = relationship('Tag', secondary='quote_tag')
 
 
@@ -56,13 +54,13 @@ class Tag(Base, ScrapyDeclarativeMetaAdapter):
 
 
 t_quote_tag = Table(
-    'quote_tag', metadata,
+    'quote_tag', Base.metadata,
     Column('quote_id', ForeignKey('quote.id')),
     Column('tag_id', ForeignKey('tag.id'))
 )
 
 # Create tables if not exists
-metadata.create_all(engine)
+Base.metadata.create_all(engine)
 
 
 class TakeAll():
@@ -93,20 +91,34 @@ class RemoveExcessWhiteSpaces():
         return [remove_excess_whitespaces(value) for value in values]
 
 
+class SayHello:
+
+    def __call__(self, values):
+        input('\n\nHello, Scrapy!\n\n')
+        return values
+
+
 def to_datetime_obj(text):
     # convert string 1879-03-14 to Python date
     return datetime.strptime(text, '%Y-%m-%d').date()
 
 
-class QuoteLoader(TableLoader):
+class QuoteLoader(ItemLoader):
     default_item_class = Quote
     default_input_processor = RemoveExcessWhiteSpaces()
     default_output_processor = TakeFirst()
 
-    tags_out = TakeAll()
+    authorDOTname = MapCompose(
+        RemoveExcessWhiteSpaces,
+        SayHello
+    )
+    tags_out = MapCompose(
+        TakeAll,
+        SayHello
+    )
 
 
-class AuthorLoader(TableLoader):
+class AuthorLoader(ItemLoader):
     default_item_class = Author
     default_input_processor = RemoveExcessWhiteSpaces()
     default_output_processor = TakeFirst()
@@ -114,7 +126,7 @@ class AuthorLoader(TableLoader):
     birthday_in = MapCompose(to_datetime_obj)
 
 
-class TagLoader(TableLoader):
+class TagLoader(ItemLoader):
     default_item_class = Tag
     default_input_processor = RemoveExcessWhiteSpaces()
     default_output_processor = TakeFirst()

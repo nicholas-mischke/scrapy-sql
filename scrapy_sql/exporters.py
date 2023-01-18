@@ -1,10 +1,24 @@
 
 from scrapy.exporters import BaseItemExporter
+from scrapy.utils.misc import load_object
 
-def _add(session, table):
-    session.add(table)
+from sqlalchemy.orm.collections import InstrumentedList
+from sqlalchemy.orm.decl_api import DeclarativeMeta
+from sqlalchemy import Table
+
+from scrapy_sql.utils import table_in_session
+
+from pprint import pprint
+
+
+def _default_add(session, table):
+    if table_in_session(session, table) is False:
+        table.filter_relationships(session)
+        session.add(table)
+
 
 class SQLAlchemyTableExporter(BaseItemExporter):
+
     def __init__(self, session, **kwargs):
         """
         session is a sqlalchemy.orm session obj.
@@ -29,11 +43,10 @@ class SQLAlchemyTableExporter(BaseItemExporter):
         )
 
         self.session = session
-
-        self.add = kwargs.get('sqlalchemy_add')
-        if self.add is None:
-            self.add = _add
+        self.add = load_object(
+            kwargs.get('sqlalchemy_add')
+            or _default_add
+        )
 
     def export_item(self, table):
         self.add(self.session, table)
-

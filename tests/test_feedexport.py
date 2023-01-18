@@ -15,5 +15,5 @@ class TestSQLAlchemyFeedStorage:
     def test_open(self):
         pass
 
-    def test_store_in_thread(self):
+    def test_under_store_in_thread(self):
         pass

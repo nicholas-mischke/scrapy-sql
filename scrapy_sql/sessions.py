@@ -1,6 +1,7 @@
 
 # Scrapy imports
 from scrapy.utils.project import get_project_settings
+from scrapy.utils.spider import iter_spider_classes
 
 # SQLAlchemy imports
 from sqlalchemy import create_engine
@@ -17,6 +18,9 @@ def get_sqlalchemy_connection_strings():
 
     # settings = scrapy.settings.Settings()
     # settings.setmodule(module='tests.data.settings', priority='project')
+
+    # Load all spiders and check for custom settings
+    # Add those to settings when making these URIs
 
     return [
         uri for uri, option_dict in settings.getdict('FEEDS').items()

@@ -14,9 +14,9 @@ from sqlalchemy.orm import sessionmaker, relationship
 from scrapy_sql import ScrapyDeclarativeMetaAdapter, SQLAlchemyTableAdapter
 
 
-@pytest.fixture(scope='session')
+@pytest.fixture(scope='session', params=["sqlite:///:memory:"])
 def engine():
-    return create_engine(conn_str)
+    return create_engine(param)
 
 
 @pytest.fixture(scope='session')
