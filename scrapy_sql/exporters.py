@@ -6,14 +6,28 @@ from sqlalchemy.orm.collections import InstrumentedList
 from sqlalchemy.orm.decl_api import DeclarativeMeta
 from sqlalchemy import Table
 
-from scrapy_sql.utils import table_in_session
+from scrapy_sql.utils import filter_table, table_in_session
 
 from pprint import pprint
 
 
 def _default_add(session, table):
+
+    if 'quotes.tables.Quote' in str(table.__class__):
+        print('\n\n_default_add')
+        print(table)
+        print(f"{table.query_filters=}")
+        input('\n\n')
+
+    filtered_table = filter_table(session, table)
+    if filtered_table != table and 'quotes.tables.Quote' in str(table.__class__):
+        print('Table already in session')
+        print('\n\n__default_add')
+        print(filtered_table)
+        print(f"{filtered_table.query_filters=}")
+        input('\n\n')
+
     if table_in_session(session, table) is False:
-        table.filter_relationships(session)
         session.add(table)
 
 

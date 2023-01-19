@@ -1,12 +1,13 @@
 
 # Declare top-level shortcuts
-from .tableadapter import SQLAlchemyTableAdapter, ScrapyDeclarativeMetaAdapter
+from .tableadapter import SQLAlchemyTableAdapter, ScrapyDeclarativeMetaAdapter, QueryFilter
 from .feedexport import SQLAlchemyFeedStorage
 from .exporters import SQLAlchemyTableExporter
 from .connections import connection_info
 
 
 __all__ = [
+    'QueryFilter'
     'ScrapyDeclarativeMetaAdapter',
     'SQLAlchemyFeedStorage',
     'SQLAlchemyTableExporter',

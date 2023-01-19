@@ -70,6 +70,8 @@ class TakeAll():
     """
 
     def __call__(self, values):
+        if len(values) == 0:
+            return None
         return values
 
 

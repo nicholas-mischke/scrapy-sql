@@ -18,17 +18,20 @@ def print_dir_obj(obj, tab_count=0):
     print(f"\n\n{'    '*tab_count}{obj.__class__}")
     print(f"{'    '*tab_count}{obj}\n\n")
     for attr in dir(obj):
-        obj_attr = getattr(obj, attr)
-        # if hasattr(obj_attr, '__call__'):
-        #     print_dir_obj(obj_attr, tab_count=tab_count+1)
-        #     print()
-        # else:
-        if attr == '__dict__':
-            print(f"{'    '*tab_count}{attr}: ")
-            pprint(obj_attr)
-        else:
-            print(f"{'    '*tab_count}{attr} : {obj_attr}")
-        print()
+        try:
+            obj_attr = getattr(obj, attr)
+            # if hasattr(obj_attr, '__call__'):
+            #     print_dir_obj(obj_attr, tab_count=tab_count+1)
+            #     print()
+            # else:
+            if attr == '__dict__':
+                print(f"{'    '*tab_count}{attr}: ")
+                pprint(obj_attr)
+            else:
+                print(f"{'    '*tab_count}{attr} : {obj_attr}")
+            print()
+        except AttributeError:
+            print(f"{'    '*tab_count}{attr}: AttributeError")
     input()
 
 
@@ -38,14 +41,30 @@ def _default_commit(session):
     """
 
     for cls in SQLAlchemyTableAdapter.seen_classes:
-        if not 'quotes.tables.Quote' in str(cls):
-            continue
+        for table in session.query(cls).all():
 
-        for tbl in session.query(cls).all():
-            if tbl.quote == 'If not us, who? If not now, when?':
-                print_dir_obj(tbl)
-        input()
+            if 'quotes.tables.Quote' in str(cls):
+                print('\n\n_default_commit')
+                print(table)
+                print(f"{table.query_filters=}")
+                input('\n\n')
 
+            table.query_relationships(session)
+            table.filter_relationships(session)
+
+            print()
+
+    session.commit()
+    session.close()
+
+    # for cls in SQLAlchemyTableAdapter.seen_classes:
+    #     if not 'quotes.tables.Quote' in str(cls):
+    #         continue
+
+    #     for tbl in session.query(cls).all():
+    #         if tbl.quote == 'If not us, who? If not now, when?':
+    #             print_dir_obj(tbl)
+    #     input()
 
     # # # In the open method of the SQLAlchemyFeedStorage cls
     # # # we configure the session with Session.configure(binds=base_engine_mapping)
@@ -57,9 +76,6 @@ def _default_commit(session):
     # #     # metadata.sorted_tables
     # #     # Base.registry.mapped
     # #     # Base.registry._class_registry.data.values()
-
-    session.commit()
-    session.close()
 
 
 @implementer(IFeedStorage)
@@ -86,7 +102,7 @@ class SQLAlchemyFeedStorage:
     def open(self, spider):
         Session = sessionmaker()
         Session.configure(binds=base_engine_mapping)
-        return Session()
+        return Session(no_autoflush=True)
 
     def store(self, session):
         if urlparse(self.uri).scheme == 'sqlite':  # SQLite is not thread safe

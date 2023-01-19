@@ -33,25 +33,69 @@ from sqlalchemy.orm.collections import InstrumentedList
 
 class QueryFilter:
 
-    def __init__(self, single_relation):
+    def __init__(self, relationship_info):
         """
-        Contains data in a single_relation or a list of dictionaries
+        base_cls (type SQLAlchemy Table):
+        relationship_attr (string): the name of the relationship attr in the base_cls
+        relationship_info (dict):
         """
-        self.single_relation = single_relation
-        self.data = {} if self.single_relation else []
 
-    def update(self, value):
-        if not isinstance(value, dict):
+        self.cls = relationship_info['cls']
+        self.column_names = self.cls().column_names
+
+        self.single_relation = relationship_info['single_relation']
+        self.data = {} if self.single_relation else set()
+
+    def update(self, column_name, value):
+
+        if column_name not in self.column_names:
             raise TypeError()
 
         if self.single_relation:
-            self.data.update(value)
-        elif isinstance(value, dict):
-            self.data.append(value)
+            self.data.update({column_name: value})
+        else:
+            self.data.add({column_name: value})
 
     @property
     def isempty(self):
         return len(self.data) == 0
+
+    def __str__(self):
+        return str(self.data)
+
+    __repr__ = __str__
+
+
+class QueryFilterContainer:
+
+    def __init__(self, parent_table):
+        """
+        parent_table: the SQLAlchemy Table that hasa QueryFilterContainer
+        """
+        self.relationship_attrs = parent_table.relationship_names
+        self.relationship_info = parent_table.relationships
+
+        self.data = {
+            name: QueryFilter(self.relationship_info.get(name))
+            for name in self.relationship_attrs
+        }
+
+    def update(self, attr, value):
+        if 'DOT' not in attr:
+            raise BaseException()
+
+        attribute_name, attribute_column = attr.split('DOT')
+        self.data[attribute_name].update(attribute_column, value)
+
+    def get(self, relationship_attr):
+        return self.data[relationship_attr]
+
+    def __str__(self):
+        return str(
+            {key: str(value) for key, value in self.data.items()}
+        )
+
+    __repr__ = __str__
 
 
 class _MixinColumnSQLAlchemyAdapter:
@@ -128,14 +172,15 @@ class _MixinColumnSQLAlchemyAdapter:
                 attr.extend(value)
             return
 
-        if field_name in self.item.relationship_DOT_attrs:
-            relationship_name, relationship_attr = field_name.split('DOT')
+        if field_name in self.item.accepted_DOT_field_names:
+            self.item.query_filters.update(field_name, value)
 
-            relationship = self.item.relationships.get(relationship_name)
+            if 'quotes.tables.Quote' in str(self.item.__class__):
+                print('\n\n__setitem__')
+                print(self.item)
+                print(f"{self.item.query_filters=}")
+                input('\n\n')
 
-            relationship['query_filter'].update(
-                {relationship_name: relationship_attr}
-            )
             return
 
         raise KeyError(
@@ -173,31 +218,13 @@ class SQLAlchemyTableAdapter(_MixinColumnSQLAlchemyAdapter, AdapterInterface):
     seen_classes = set()
 
     @classmethod
-    def clear_seen_classes(cls):
-        cls.seen_classes.clear()
-
-    def asdict(self) -> dict:
-        d = {}
-
-        for column in self.item.columns:
-            d[column.name] = getattr(self.item, column)
-
-        for name, info in self.item.relationships.items():
-            d[name] = info['related_tables']
-
-        for name in self.item.relationship_DOT_attrs:
-            d[name] = None
-
-        return d
-
-        # return self.item.asdict()
-
-    @classmethod
     def is_item(cls, item: Any) -> bool:
         """
         This method is called when initalizing the ItemAdapter class.
         We also
+        """
 
+        """
         Return True if the adapter can handle the given item, False otherwise.
         The default implementation calls cls.is_item_class(item.__class__).
 
@@ -214,6 +241,9 @@ class SQLAlchemyTableAdapter(_MixinColumnSQLAlchemyAdapter, AdapterInterface):
             cls.seen_classes.add(item.__class__)
             return True
         return False
+
+    def clear_seen_classes(cls):
+        cls.seen_classes.clear()
 
     @classmethod
     def is_item_class(cls, item_class: type) -> bool:
@@ -234,7 +264,8 @@ class SQLAlchemyTableAdapter(_MixinColumnSQLAlchemyAdapter, AdapterInterface):
 
     @classmethod
     def get_field_names_from_class(cls, item_class: type) -> Optional[List[str]]:
-        return item_class.__table__.columns.keys()
+        return item_class.asdict().keys()
+        # return item_class.__table__.columns.keys()
 
     def field_names(self) -> KeysView:
         """
@@ -252,9 +283,10 @@ class SQLAlchemyTableAdapter(_MixinColumnSQLAlchemyAdapter, AdapterInterface):
         Returns:
             _type_: _description_
         """
-        return KeysView(self.item.__table__.columns.keys())
+        return KeysView(self.item.asdict().keys())
 
-
+    def asdict(self) -> dict:
+        return self.item.asdict()
 
 
 class ScrapyDeclarativeMetaAdapter:
@@ -270,6 +302,15 @@ class ScrapyDeclarativeMetaAdapter:
     normally by utilizing this classes' __repr__ method
     """
 
+    @property
+    def query_filters(self):
+        attr_dunder_name = '__query_filters'
+        try:
+            return getattr(self, attr_dunder_name)
+        except AttributeError:
+            setattr(self, attr_dunder_name, QueryFilterContainer(self))
+        return getattr(self, attr_dunder_name)
+
     @cached_property
     def columns(self):
         return self.__table__.columns
@@ -284,6 +325,7 @@ class ScrapyDeclarativeMetaAdapter:
         Mainly used by session.query(class).filter_by().first() calls
         """
         d = {}
+
         for column in self.columns:
             # SQLite doesn't support DATE/TIME types, but instead converts them to strings.
             # Without this block of code this fact creates problems when
@@ -312,12 +354,15 @@ class ScrapyDeclarativeMetaAdapter:
             ):
                 continue
 
-            # Foreign keys are often sat by the relationship attrs
-            # It's best not to sit this directly, or to filter by it.
-            # elif column.foreign_keys != set():
-            #     continue
+            # Foreign keys are typically sat with the relationship attrs
+            # Since these may or may not be set for individual table instances
+            # we'll avoid using them as a filter
+            elif column.foreign_keys != set():
+                continue
 
-            d[column.name] = getattr(self, column.name)
+            else:
+                d[column.name] = getattr(self, column.name)
+
         return d
 
     @property
@@ -330,34 +375,29 @@ class ScrapyDeclarativeMetaAdapter:
             related_tables = getattr(self, name)
             single_relation = not isinstance(related_tables, InstrumentedList)
 
-            query_filter = QueryFilter(single_relation)
-            query_filter_attr = f"__{name}_query_filter"
-            setattr(
-                self,
-                query_filter_attr,
-                query_filter
-            )
-
             d[name] = {
                 'cls': cls,
                 'direction': direction,
                 'related_tables': related_tables,
                 'single_relation': single_relation,
-                'query_filter': getattr(self, query_filter_attr)
             }
         return d
 
+    @cached_property
+    def relationship_names(self):
+        return tuple(name for name in self.relationships.keys())
+
     def query_relationships(self, session):
-        for name, info in self.relationships.items():
-            query_filter = info['query_filter']
+        for name in self.relationship_names:
+            query_filter = self.query_filters.get(name)
+
+            # input(f"{query_filter=}")
             if query_filter.isempty:
                 continue
 
-            single_relation = info['single_relation']
-            relationship_cls = info['cls']
-            if single_relation:  # Can add None
+            if query_filter.single_relation:  # Can add None
                 attr = session.query(
-                    relationship_cls
+                    query_filter.cls
                 ).filter_by(
                     **query_filter.data
                 ).first()
@@ -365,7 +405,7 @@ class ScrapyDeclarativeMetaAdapter:
                 attr = set()
                 for query_dict in query_filter.data:
                     exists = session.query(
-                        relationship_cls
+                        query_filter.cls
                     ).filter_by(
                         **query_dict
                     ).first()
@@ -406,13 +446,51 @@ class ScrapyDeclarativeMetaAdapter:
                     InstrumentedList(filtered_tables)
                 )
 
+    def combine_relationships(self, other):
+        """
+        When filtering out table objs, it's possible that two equal objs
+        (equal based on column fields) have unequal relationships.
+        """
+        pass
+
     @property
-    def relationship_DOT_attrs(self):
+    def accepted_DOT_field_names(self):
+        """
+        Suppose we're scraping https://quotes.toscrape.com/
+        If we have a `Quote` and `Author` table we could define the
+        relationship in the `Quote`.
+
+        To determine which `Author` table belongs to that relationship we'd
+        need to query an active session like
+
+        session.query(
+            Author
+        ).filter_by(
+            {'name': 'authors_name'}
+        ).first()
+
+        to make that query we allow an `authorDOTname` field to be scraped
+        for the quote table.
+        """
         result = []
         for r in inspect(self.__class__).relationships:
             for column_name in r.mapper.class_().column_names:
                 result.append(f'{r.class_attribute.key}DOT{column_name}')
         return tuple(result)
+
+    def asdict(self):
+        d = {}
+
+        for column in self.columns:
+            d[column.name] = getattr(self, column.name)
+
+        for name, info in self.relationships.items():
+            d[name] = info['related_tables']
+
+        for name in self.accepted_DOT_field_names:
+            d[name] = None
+
+        return d
 
     def __repr__(self):
         result = f"{self.__class__.__name__}("

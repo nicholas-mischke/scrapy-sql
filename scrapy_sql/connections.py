@@ -1,3 +1,4 @@
+
 from pathlib import Path
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import create_engine
@@ -48,11 +49,11 @@ for conn_str in iter_conn_strs():
         echo=project_settings.getbool('SQLALCHEMY_ENGINE_ECHO'),
         # poolclass=NullPool
     )
-    database = get_database_name(engine)
+    database_name = get_database_name(engine)
     Base = declarative_base()
 
     base_engine_mapping[Base] = engine
-    connection_info[database] = {
+    connection_info[database_name] = {
         'conn_str': conn_str,
         'engine':   engine,
         'Base':     Base,
