@@ -53,8 +53,7 @@ for conn_str in iter_conn_strs():
     Base = declarative_base()
 
     base_engine_mapping[Base] = engine
-    connection_info[database_name] = {
-        'conn_str': conn_str,
+    connection_info[conn_str] = {
         'engine':   engine,
         'Base':     Base,
     }

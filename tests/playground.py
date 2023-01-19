@@ -1,7 +1,8 @@
 
+# from scrapy_sql.scrapy_session import ScrapySession
 import re
 from datetime import datetime
-
+from sqlalchemy.orm.decl_api import DeclarativeMeta
 from itemloaders.processors import (
     Identity,
     TakeFirst,
@@ -16,18 +17,27 @@ from scrapy_sql import (
     ScrapyDeclarativeMetaAdapter,
     connection_info
 )
-
+from sqlalchemy.orm.collections import InstrumentedList
 from scrapy_sql.tableadapter import SQLAlchemyTableAdapter
 
 # from scrapy_sql.loader import TableLoader
 from scrapy.loader import ItemLoader
 
-engine = create_engine('sqlite://')
+from pathlib import Path
+# /mnt/4TB-HDD/Dropbox/Programming/python_packages/scrapy-sql/development/tests/playground.py
+
+db_file = 'quotes_playground.db'
+conn_str = f'sqlite:///{db_file}'
+# input(conn_str)
+
+engine = create_engine(conn_str)
 Base = declarative_base()
 
 Session = sessionmaker()
 Session.configure(bind=engine)
 session = Session()
+
+# session = ScrapySession(Base, engine)
 
 
 class Author(Base, ScrapyDeclarativeMetaAdapter):
@@ -68,33 +78,41 @@ t_quote_tag = Table(
 # Create tables if not exists
 Base.metadata.create_all(engine)
 
+# Load up the first quote from the website
+einstein = Author()
+einstein.name, einstein.birthday, einstein.bio = (
+    'Albert Einstein',
+    datetime(month=3, day=14, year=1879),
+    'Won the 1921 Nobel Prize in Physics.'
+)
+
 change = Tag()
 change.name = 'change'
 
-change_II = Tag()
-change.name = 'change'
+change_duplicate = Tag()
+change_duplicate.name = 'change'
 
-session.add(change)
-session.add(change)
-session.add(change)
-session.add(change)
-session.commit()
+deep_thoughts = Tag()
+deep_thoughts.name = 'deep-thoughts'
 
-session.add(change_II)
-session.commit()
+quote = Quote()
+quote.quote, quote.author = (
+    'The world as we have created it is a process of our thinking. It cannot be changed without changing our thinking.',
+    einstein
+)
+quote.tags.extend([change, deep_thoughts])
+print(quote)
 
 
-# from pprint import pprint
 
-# author = Author()
-# author.name = 'Fat Albert'
-# session.add(author)
 
-# quote = Quote()
-# quote.quote = 'Hey, Hey, Hey!'
-# adapter = SQLAlchemyTableAdapter(quote)
-# print(quote)
-# adapter['authorDOTname'] = 'Fat Albert'
+# print(change == change_duplicate)
+# print(change is change_duplicate)
 
-# quote.query_relationships(session)
-# print(quote)
+# session.add(einstein)
+# session.add(change)
+# session.add(deep_thoughts)
+# session.add(quote)
+
+# session.commit()
+# session.close()

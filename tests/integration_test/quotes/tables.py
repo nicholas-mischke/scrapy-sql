@@ -19,7 +19,7 @@ from scrapy_sql import (
 from scrapy.loader import ItemLoader
 
 
-database = connection_info.get('quotes')
+database = connection_info.get('sqlite:///quotes.db')
 engine = database.get('engine')
 Base = database.get('Base')
 
@@ -30,7 +30,7 @@ class Author(Base, ScrapyDeclarativeMetaAdapter):
     id = Column(Integer, primary_key=True)
 
     name = Column(String(50), unique=True)
-    birthday = Column(DateTime)
+    # birthday = Column(DateTime)
     bio = Column(Text)
 
 
@@ -125,7 +125,7 @@ class AuthorLoader(ItemLoader):
     default_input_processor = RemoveExcessWhiteSpaces()
     default_output_processor = TakeFirst()
 
-    birthday_in = MapCompose(to_datetime_obj)
+    # birthday_in = MapCompose(to_datetime_obj)
 
 
 class TagLoader(ItemLoader):

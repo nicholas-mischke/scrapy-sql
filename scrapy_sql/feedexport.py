@@ -1,6 +1,7 @@
 
-from scrapy_sql.connections import base_engine_mapping
+from scrapy_sql.connections import base_engine_mapping, connection_info
 from scrapy_sql.tableadapter import SQLAlchemyTableAdapter
+from scrapy_sql.scrapy_session import ScrapySession
 
 from sqlalchemy.orm import sessionmaker
 
@@ -35,47 +36,16 @@ def print_dir_obj(obj, tab_count=0):
     input()
 
 
-def _default_commit(session):
+def _default_commit(scrapy_session):
     """
     resolve one-to-many relationships etc.
     """
+    scrapy_session.resolve_relationships()
 
-    for cls in SQLAlchemyTableAdapter.seen_classes:
-        for table in session.query(cls).all():
-
-            if 'quotes.tables.Quote' in str(cls):
-                print('\n\n_default_commit')
-                print(table)
-                print(f"{table.query_filters=}")
-                input('\n\n')
-
-            table.query_relationships(session)
-            table.filter_relationships(session)
-
-            print()
-
+    session = scrapy_session.session
+    
     session.commit()
     session.close()
-
-    # for cls in SQLAlchemyTableAdapter.seen_classes:
-    #     if not 'quotes.tables.Quote' in str(cls):
-    #         continue
-
-    #     for tbl in session.query(cls).all():
-    #         if tbl.quote == 'If not us, who? If not now, when?':
-    #             print_dir_obj(tbl)
-    #     input()
-
-    # # # In the open method of the SQLAlchemyFeedStorage cls
-    # # # we configure the session with Session.configure(binds=base_engine_mapping)
-    # # # To get all tables in the session, we need the metadata of the Base
-    # # base_engine_mapping = session._Session__binds
-    # # engines = list(base_engine_mapping.values())
-    # # Bases = list(base_engine_mapping.keys())
-    # # metadata_lst = [Base.metadata for Base in Bases]
-    # #     # metadata.sorted_tables
-    # #     # Base.registry.mapped
-    # #     # Base.registry._class_registry.data.values()
 
 
 @implementer(IFeedStorage)
@@ -96,13 +66,16 @@ class SQLAlchemyFeedStorage:
 
     def __init__(self, uri, *, commit=None, feed_options=None):
         self.uri = uri
+
+        connection = connection_info.get(self.uri)
+        self.engine = connection['engine']
+        self.Base = connection['Base']
+
         self.commit = commit
         self.feed_options = feed_options
 
     def open(self, spider):
-        Session = sessionmaker()
-        Session.configure(binds=base_engine_mapping)
-        return Session(no_autoflush=True)
+        return ScrapySession(self.Base.metadata, self.engine)
 
     def store(self, session):
         if urlparse(self.uri).scheme == 'sqlite':  # SQLite is not thread safe

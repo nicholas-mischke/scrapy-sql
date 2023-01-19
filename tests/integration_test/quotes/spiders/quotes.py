@@ -50,7 +50,7 @@ class QuotesSpider(CrawlSpider):
         loader = AuthorLoader(selector=response)
 
         loader.add_xpath('name',     '//h1/text()')
-        loader.add_xpath('birthday', '//span[@class="date"]/text()')
+        # loader.add_xpath('birthday', '//span[@class="date"]/text()')
         loader.add_xpath('bio',      '//span[@class="bio"]/text()')
 
         yield loader.load_item()
