@@ -74,7 +74,7 @@ class SQLAlchemyFeedStorage:
             feed_options=feed_options,
         )
 
-    def __init__(self, uri, *, metadata, commit=None, feed_options=None):
+    def __init__(self, uri, *, metadata, commit, feed_options=None):
         self.uri = uri
 
         self.engine = create_engine(self.uri)
