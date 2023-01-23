@@ -26,8 +26,6 @@ from pprint import pprint
 import json
 import ast
 
-from scrapy_sql import utils
-
 from sqlalchemy.orm.collections import InstrumentedList
 
 

@@ -2,14 +2,6 @@
 from scrapy.exporters import BaseItemExporter
 from scrapy.utils.misc import load_object
 
-from sqlalchemy.orm.collections import InstrumentedList
-from sqlalchemy.orm.decl_api import DeclarativeMeta
-from sqlalchemy import Table
-
-from scrapy_sql.utils import filter_table, table_in_session
-
-from pprint import pprint
-
 
 def _default_add(session, table):
     session.add(table)
