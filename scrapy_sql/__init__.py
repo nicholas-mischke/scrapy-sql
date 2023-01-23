@@ -1,17 +1,15 @@
 
 # Declare top-level shortcuts
+from pathlib import Path
 from .tableadapter import SQLAlchemyTableAdapter, ScrapyDeclarativeMetaAdapter, QueryFilter
 from .feedexport import SQLAlchemyFeedStorage
 from .exporters import SQLAlchemyTableExporter
-from .connections import connection_info
-
 
 __all__ = [
     'QueryFilter'
     'ScrapyDeclarativeMetaAdapter',
     'SQLAlchemyFeedStorage',
     'SQLAlchemyTableExporter',
-    'connection_info'
 ]
 
 # Update scrapy ItemAdapter class to work with SQLAlchemy.
@@ -22,8 +20,7 @@ itemadapter.adapter.ItemAdapter.ADAPTER_CLASSES.appendleft(
 
 
 # This should be deleted soon....
-from pathlib import Path
-db_file  = Path(__file__).parent.parent / 'tests/integration_test/quotes.db'
+db_file = Path(__file__).parent.parent / 'tests/integration_test/quotes.db'
 log_file = Path(__file__).parent.parent / 'tests/integration_test/quotes.log'
 
 db_file.unlink(missing_ok=True)

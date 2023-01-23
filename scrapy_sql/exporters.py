@@ -17,6 +17,8 @@ def _default_add(session, table):
 
 class SQLAlchemyTableExporter(BaseItemExporter):
 
+    db_exists = False
+
     def __init__(self, session, **kwargs):
         """
         session is a sqlalchemy.orm session obj.

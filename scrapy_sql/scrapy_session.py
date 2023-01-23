@@ -5,7 +5,7 @@ from sqlalchemy.orm.collections import InstrumentedList
 
 class ScrapySession:
 
-    def __init__(self, Base, engine):
+    def __init__(self, engine):
         Session = sessionmaker()
         Session.configure(bind=engine)
         self.session = Session()

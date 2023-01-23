@@ -4,7 +4,7 @@ from pathlib import Path
 from scrapy.linkextractors import LinkExtractor
 from scrapy.spiders import CrawlSpider, Rule
 
-from quotes.tables import QuoteLoader, AuthorLoader, TagLoader
+from quotes.itemloaders import QuoteLoader, AuthorLoader, TagLoader
 
 
 website_directory = Path(__file__).parent.parent.parent / 'quote_website'
@@ -50,7 +50,7 @@ class QuotesSpider(CrawlSpider):
         loader = AuthorLoader(selector=response)
 
         loader.add_xpath('name',     '//h1/text()')
-        # loader.add_xpath('birthday', '//span[@class="date"]/text()')
+        loader.add_xpath('birthday', '//span[@class="date"]/text()')
         loader.add_xpath('bio',      '//span[@class="bio"]/text()')
 
         yield loader.load_item()
