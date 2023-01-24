@@ -1,12 +1,13 @@
 
 # Declare top-level shortcuts
 from pathlib import Path
-from .tableadapter import SQLAlchemyTableAdapter, ScrapyDeclarativeMetaAdapter, QueryFilter
+
+from .tableadapter import SQLAlchemyTableAdapter, ScrapyDeclarativeMetaAdapter
 from .feedexport import SQLAlchemyFeedStorage
 from .exporters import SQLAlchemyTableExporter
+import collections
 
 __all__ = [
-    'QueryFilter'
     'ScrapyDeclarativeMetaAdapter',
     'SQLAlchemyFeedStorage',
     'SQLAlchemyTableExporter',

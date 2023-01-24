@@ -1,6 +1,7 @@
 
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy.orm.collections import InstrumentedList
+from scrapy_sql._collections import ScrapyTableList
+from scrapy_sql import SQLAlchemyTableAdapter
 
 
 class ScrapySession:
@@ -16,14 +17,20 @@ class ScrapySession:
         self.added_tables = []
 
     def add(self, table):
+
+        adapter = SQLAlchemyTableAdapter(table)
+
         # Make sure to not add duplicates via relationships
-        for relationship in table.relationships:
-            filtered_tables = InstrumentedList()
+        for relationship in adapter.relationships:
+            adapter[relationship.name] = ScrapyTableList(
+                relationship.related_tables)
+
+            filtered_tables = ScrapyTableList(self)
 
             for related_table in relationship:
-                filtered_tables.append(self.query_session(related_table))
+                filtered_tables.append(related_table)
 
-            relationship.replace_tables(filtered_tables)
+            adapter[relationship.name] = filtered_tables
 
         # Don't add duplicates to session obj
         table = self.query_session(table)
@@ -42,30 +49,19 @@ class ScrapySession:
                 if query_filter.isempty:
                     continue
 
-                filtered_tables = InstrumentedList()
+                filtered_tables = ScrapyTableList(self)
                 for filter_kwargs in query_filter:
-                    filtered_tables.append(
-                        self.query_session(
-                            filter_kwargs,
-                            relationship.cls
-                        )
+
+                    table = self.query_session(
+                        relationship.cls(**filter_kwargs)
                     )
+                    filtered_tables.append(table)
+
                 relationship.replace_tables(filtered_tables)
 
-    def query_session(self, table, filter_cls=None):
-
-        if isinstance(table, dict):
-            filter_kwargs = table
-            if filter_cls is None:  # Cannot filter out based on <class dict> belwo
-                raise BaseException()
-        else:
-            filter_kwargs = table.query_filter
-
-        if filter_cls is None:
-            filter_cls = table.__class__
-
+    def query_session(self, table):
         return self.session.query(
-            filter_cls
+            table.__class__
         ).filter_by(
-            **filter_kwargs
+            **table.query_filter
         ).first() or table

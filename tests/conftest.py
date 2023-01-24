@@ -28,10 +28,15 @@ def create_tables():
 def seeded_db():
     pass
 
+
 @pytest.fixture()
 def session():
     pass
 
+
+@pytest.fixture()
+def seeded_session():
+    pass
 
 
 @pytest.fixture()

@@ -43,3 +43,20 @@ t_quote_tag = Table(
     Column('quote_id', ForeignKey('quote.id')),
     Column('tag_id', ForeignKey('tag.id'))
 )
+
+
+if __name__ == '__main__':
+
+    from scrapy_sql import SQLAlchemyTableAdapter
+    from pprint import pprint
+
+    quote = Quote(
+        **{
+            'id': 1,
+            'author_id': 1,
+            'quote': 'If not us, who? If not now, when?'
+        }
+    )
+    adapter = SQLAlchemyTableAdapter(quote)
+
+    pprint(adapter.asdict())

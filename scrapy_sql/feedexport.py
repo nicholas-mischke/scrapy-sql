@@ -32,7 +32,7 @@ class SQLAlchemyFeedStorage:
         try:
             item_classes = feed_options['item_classes']
         except KeyError:
-            return NotConfigured
+            raise NotConfigured
 
         return build_storage(
             cls,
