@@ -1,6 +1,6 @@
 
 from sqlalchemy import create_engine
-from scrapy_sql.scrapy_session import ScrapySession
+from scrapy_sql.session import ScrapySession, scrapy_sessionmaker
 
 from scrapy.extensions.feedexport import IFeedStorage, build_storage
 from scrapy.exceptions import NotConfigured
@@ -11,14 +11,10 @@ from urllib.parse import urlparse
 from zope.interface import implementer
 
 
-def _default_commit(scrapy_session):
+def _default_commit(session):
     """
     resolve one-to-many relationships etc.
     """
-    scrapy_session.resolve_relationships()
-
-    session = scrapy_session.session
-
     session.commit()
     session.close()
 
@@ -56,7 +52,7 @@ class SQLAlchemyFeedStorage:
         self.commit = commit
 
     def open(self, spider):
-        return ScrapySession(self.engine)
+        return ScrapySession(bind=self.engine)
 
     def store(self, session):
         if urlparse(self.uri).scheme == 'sqlite':  # SQLite is not thread safe
