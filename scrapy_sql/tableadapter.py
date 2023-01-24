@@ -1,14 +1,7 @@
 
 # For Item Adapters
-from sqlalchemy import Table, func, Integer
+from sqlalchemy import Table, Integer
 from sqlalchemy.orm.decl_api import DeclarativeMeta
-from sqlalchemy.types import (
-    DATE, Date,
-    DATETIME, DateTime,
-    TIME, Time,
-    TIMESTAMP
-)
-from sqlalchemy import Column
 from functools import cached_property
 
 from itemadapter.adapter import AdapterInterface
@@ -17,6 +10,8 @@ from collections.abc import KeysView
 from typing import Any, Iterator, Optional, List
 
 from sqlalchemy.inspection import inspect
+
+from scrapy_sql.containers import RelationshipCollection
 
 
 class _MixinColumnSQLAlchemyAdapter:
@@ -30,28 +25,53 @@ class _MixinColumnSQLAlchemyAdapter:
 
     def __setitem__(self, field_name: str, value: Any) -> None:
         # Column names can be sat directly
-        if field_name in self.item.column_names:
-            setattr(self.item, field_name, value)
+        if field_name in self.column_names:
+            pass
 
-        elif field_name in self.item.accepted_DOT_field_names:
-            self.item.query_filters.update(field_name, value)
+        # Relationships can be sat directly
+        elif field_name in self.relationships.names:
+            relationship = self.item.relationships[field_name]
 
-        elif field_name in self.item.relationship_names:
-
-            # Gotta be a cleaner way to do this...
-            relationship = [
-                r for r in self.item.relationships if r.name == field_name
-            ][0]
-
-            if not relationship.single_relation:
-                relationship.extend(value)
+            if relationship.single_relation:
+                if isinstance(value, relationship.cls):
+                    pass
+                elif (
+                    hasattr(value, '__iter__')
+                    and len(value) == 1
+                    and isinstance(value[0], relationship.cls)
+                ):
+                    value = value[0]
+                elif (
+                    hasattr(value, '__iter__')
+                    and len(value) == 0
+                ):
+                    value = None
+                else:
+                    raise TypeError
             else:
-                relationship.replace_tables(value)
+                if isinstance(value, relationship.cls):
+                    value = [value]
+                elif (
+                    hasattr(value, '__iter__')
+                    and all([isinstance(v, self.cls) for v in value])
+                ):
+                    pass
+                else:
+                    raise TypeError
 
+        # # This works for now, but needs to be update to support multiple fields
+        # elif field_name in self.relationships.accepted_DOT_field_names:
+        #     relationship_name, relationship_column = field_name.split('DOT')
+        #     relationship = self.item.relationships[relationship_name]
+
+        #     field_name = f'{relationship_name}QUERY'
+        #     value = relationship.cls(**{relationship_column, value})
         else:
             raise KeyError(
-                f"{self.item.__class__.__name__} does not support field: {field_name}"
+                f"{self.item_class_name} does not support field: {field_name}"
             )
+
+        setattr(self.item, field_name, value)
 
     def __delitem__(self, field_name: str) -> None:
         """
@@ -64,7 +84,7 @@ class _MixinColumnSQLAlchemyAdapter:
         return iter(self.asdict())
 
     def __len__(self) -> int:
-        return len(self.asdict())
+        return len(self.columns)
 
 
 class SQLAlchemyTableAdapter(_MixinColumnSQLAlchemyAdapter, AdapterInterface):
@@ -77,8 +97,8 @@ class SQLAlchemyTableAdapter(_MixinColumnSQLAlchemyAdapter, AdapterInterface):
     def __init__(self, item) -> None:
         super().__init__(item)
         self.item_class = item.__class__
+        self.item_class_name = self.item_class.__name__
 
-    # Begin class methods
     @classmethod
     def is_item(cls, item: Any) -> bool:
         """
@@ -101,13 +121,6 @@ class SQLAlchemyTableAdapter(_MixinColumnSQLAlchemyAdapter, AdapterInterface):
     def get_field_names_from_class(cls, item_class: type) -> Optional[List[str]]:
         return item_class.asdict().keys()
 
-    @classmethod
-    def get_columns(cls, item_class):
-        return item_class.__table__.columns
-
-    # End class methods
-
-    # Begin instance methods
     def field_names(self) -> KeysView:
         """
         Return a dynamic view of the table's column names. By default, this
@@ -123,26 +136,59 @@ class SQLAlchemyTableAdapter(_MixinColumnSQLAlchemyAdapter, AdapterInterface):
         """
         return KeysView(self.item.asdict().keys())
 
-    def asdict(self) -> dict:
-        d = {
-            'columns': {},
-            'relationships': {},
-            'relationship_attrs': []
-        }
+    def asdict(self):
+        d = {}
 
-        for column in SQLAlchemyTableAdapter.get_columns(self.item_class):
-            d['columns'][column.name] = getattr(self.item, column.name)
+        for column in self.columns:
+            d[column.name] = getattr(self.item, column.name)
 
         # for r in self.relationships:
-        #     d['relationships'][r.name] = r.related_tables
+        #     d[r.name] = r.related_tables
 
-        # for name in self.accepted_DOT_field_names:
-        #     d['relationship_attrs'][name] = None
+        for name in self.relationships.accepted_DOT_field_names:
+            d[name] = None
 
         return d
 
+    @cached_property
+    def columns(self):
+        return self.item.__table__.columns
 
-# Maybe make this all within an ItemAdapter
+    @cached_property
+    def column_names(self):
+        return tuple(c.name for c in self.item.__table__.columns)
+
+    @property
+    def relationships(self):
+        return RelationshipCollection(self.item_class)
+
+    @property
+    def filter_kwargs(self):
+        d = {
+            column.name: getattr(self.item, column.name)
+            for column in self.columns
+        }
+
+        return {k: v for k, v in d.items() if v is not None}
+
+        # # Query based on primary-key and unique keys
+        # for column in self.columns:
+        #     is_primary_key = column.primary_key
+        #     is_autoincrement = (
+        #         column.autoincrement is True
+        #         or (
+        #             isinstance(column.type, Integer)
+        #             and column.primary_key is True
+        #             and column.foreign_keys == set()
+        #         )
+        #     )
+        #     is_unique = column.unique
+
+        #     column_value = getattr(self.item, column.name)
+
+        # return d
+
+
 class ScrapyDeclarativeMetaAdapter:
     """
     Scrapy default logging of an item writes the item to the log file, in a
@@ -156,156 +202,81 @@ class ScrapyDeclarativeMetaAdapter:
     normally by utilizing this classes' __repr__ method
     """
 
-    @cached_property
-    def columns(self):
-        return self.__table__.columns
+    pass
 
-    @cached_property
-    def column_names(self):
-        return tuple(column.name for column in self.columns)
+    # @property
+    # def query_filter(self):
+    #     """
+    #     Mainly used by session.query(class).filter_by().first() calls
+    #     """
+    #     d = {}
 
-    @cached_property
-    def primary_key(self):
-        for column in self.columns:
-            if (
-                column.autoincrement is True
-                or (
-                    isinstance(column.type, Integer)
-                    and column.primary_key is True
-                    and column.foreign_keys == set()
-                )
-            ):
-                return column
+    #     for column in self.columns:
+    #         # # SQLite doesn't support DATE/TIME types, but instead converts them to strings.
+    #         # # Without this block of code this fact creates problems when
+    #         # # querying a session obj.
+    #         # # https://gist.github.com/danielthiel/8374607
+    #         # if isinstance(column.type, (DATE, Date)):
+    #         #     d[column.name] = func.DATE(column)
+    #         # elif isinstance(column.type, (DATETIME, DateTime)):
+    #         #     d[column.name] = func.DATETIME(column)
+    #         # elif isinstance(column.type, (TIME, Time)):
+    #         #     d[column.name] = func.TIME(column)
+    #         # elif isinstance(column.type, TIMESTAMP):
+    #         #     d[column.name] = func.TIMESTAMP(column)
 
-    @cached_property
-    def unique_columns(self):
-        pass
+    #         # Don't include autoincrement columns when filtering
+    #         # to see which tables are already added to a session.
+    #         # This is because tables in session will have a number already
+    #         # while newly initalized tables will have `None` for the value.
+    #         if (
+    #             column.autoincrement is True
+    #             or (
+    #                 isinstance(column.type, Integer)
+    #                 and column.primary_key is True
+    #                 and column.foreign_keys == set()
+    #             )
+    #         ):
+    #             continue
 
-    @cached_property
-    def foreign_keys(self):
-        pass
+    #         # Foreign keys are typically sat with the relationship attrs
+    #         # Since these may or may not be set for individual table instances
+    #         # we'll avoid using them as a filter
+    #         elif column.foreign_keys != set():
+    #             continue
 
-    @property
-    def query_filter(self):
-        """
-        Mainly used by session.query(class).filter_by().first() calls
-        """
-        d = {}
+    #         else:
+    #             d[column.name] = getattr(self, column.name)
 
-        for column in self.columns:
-            # # SQLite doesn't support DATE/TIME types, but instead converts them to strings.
-            # # Without this block of code this fact creates problems when
-            # # querying a session obj.
-            # # https://gist.github.com/danielthiel/8374607
-            # if isinstance(column.type, (DATE, Date)):
-            #     d[column.name] = func.DATE(column)
-            # elif isinstance(column.type, (DATETIME, DateTime)):
-            #     d[column.name] = func.DATETIME(column)
-            # elif isinstance(column.type, (TIME, Time)):
-            #     d[column.name] = func.TIME(column)
-            # elif isinstance(column.type, TIMESTAMP):
-            #     d[column.name] = func.TIMESTAMP(column)
+    #     return d
 
-            # Don't include autoincrement columns when filtering
-            # to see which tables are already added to a session.
-            # This is because tables in session will have a number already
-            # while newly initalized tables will have `None` for the value.
-            if (
-                column.autoincrement is True
-                or (
-                    isinstance(column.type, Integer)
-                    and column.primary_key is True
-                    and column.foreign_keys == set()
-                )
-            ):
-                continue
+    # def asdict(self):
+    #     d = {}
 
-            # Foreign keys are typically sat with the relationship attrs
-            # Since these may or may not be set for individual table instances
-            # we'll avoid using them as a filter
-            elif column.foreign_keys != set():
-                continue
+    #     for column in self.columns:
+    #         d[column.name] = getattr(self, column.name)
 
-            else:
-                d[column.name] = getattr(self, column.name)
+    #     for r in self.relationships:
+    #         d[r.name] = r.related_tables
 
-        return d
+    #     for name in self.accepted_DOT_field_names:
+    #         d[name] = None
 
-    @property
-    def query_filters(self):
-        attr_dunder_name = '__query_filters'
-        try:
-            return getattr(self, attr_dunder_name)
-        except AttributeError:
-            setattr(self, attr_dunder_name, QueryFilterCollection(self))
-        return getattr(self, attr_dunder_name)
-
-    @property
-    def relationships(self):
-        return [Relationship(self, r) for r in inspect(self.__class__).relationships]
-
-    @cached_property
-    def relationship_names(self):
-        return tuple(r.name for r in self.relationships)
-
-    @property
-    def accepted_DOT_field_names(self):
-        result = []
-        for r in self.relationships:
-            for column_name in r.column_names:
-                result.append(f'{r.name}DOT{column_name}')
-        return tuple(result)
-
-    def query_relationships(self, session):
-        for name in self.relationship_names:
-            query_filter = self.query_filters.get(name)
-
-            if query_filter.isempty:
-                continue
-
-            if query_filter.single_relation:  # Can add None
-                setattr(self, name, session.query(name, query_filter.data))
-            else:
-                tables = InstrumentedList()
-                for query_dict in query_filter.data:
-                    stored_table = session.query(name, query_dict)
-                    # Don't have None in InstrumentedList
-                    if (
-                        stored_table is not None
-                        and stored_table not in tables
-                    ):
-                        tables.append(stored_table)
-
-                setattr(self, name, tables)
-
-    def asdict(self):
-        d = {}
-
-        for column in self.columns:
-            d[column.name] = getattr(self, column.name)
-
-        for r in self.relationships:
-            d[r.name] = r.related_tables
-
-        for name in self.accepted_DOT_field_names:
-            d[name] = None
-
-        return d
+    #     return d
 
     def __repr__(self):
         result = f"{self.__class__.__name__}("
 
-        for column in self.columns:
+        for column in self.__table__.columns:
             column_value = getattr(self, column.name)
             if isinstance(column_value, str):
                 result += f"{column.name}='{column_value}', "
             else:  # No quotation marks if not a string
                 result += f"{column.name}={column_value}, "
 
-        for relationship in self.relationships:
-            result += f"{relationship.name}={relationship.related_tables},"
+        # for relationship in self.relationships:
+        #     result += f"{relationship.name}={relationship.related_tables},"
 
         return result.strip(", ") + ")"
 
-    def __str__(self):
-        return self.__repr__()
+    __str__ = __repr__

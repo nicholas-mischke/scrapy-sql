@@ -32,17 +32,14 @@ class QuotesSpider(CrawlSpider):
             loader = QuoteLoader(selector=quote)
 
             loader.add_xpath('quote',  './/span[@class="content"]/text()')
-            loader.add_xpath('authorDOTname', './/a[@class="author"]/text()')
+            # loader.add_xpath('authorDOTname', './/a[@class="author"]/text()')
 
             quote_row = loader.load_item()
 
             for tag in quote.xpath('.//span[@class="tag"]/text()').getall():
                 loader = TagLoader()
                 loader.add_value('name', tag)
-                tag_row = loader.load_item()
-
-                quote_row.tags.append(tag_row)
-                yield tag_row
+                quote_row.tags.append(loader.load_item())
 
             yield quote_row
 

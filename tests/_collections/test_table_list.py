@@ -1,16 +1,13 @@
 
 import pytest
 
-from scrapy_sql._collections import ScrapyTableList
+from scrapy_sql.containers import ScrapyTableList
+from tests.data.rows import *
 
 
 @pytest.fixture
 def seeded_session(session):
-
-    with session as session:
-        session.add()
-        session.commit()
-        yield
+    session.add(einstein_quote_I)
 
 
 class TestScrapyTableList:

@@ -12,12 +12,10 @@ class QuoteLoader(ItemLoader):
     default_output_processor = TakeFirst()
 
     authorDOTname = MapCompose(
-        RemoveExcessWhiteSpaces,
-        SayHello
+        RemoveExcessWhiteSpaces
     )
     tags_out = MapCompose(
-        TakeAll,
-        SayHello
+        TakeAll
     )
 
 

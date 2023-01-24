@@ -33,15 +33,6 @@ class RemoveExcessWhiteSpaces():
         return [remove_excess_whitespaces(value) for value in values]
 
 
-class SayHello:
-
-    def __call__(self, values):
-        input('\n\nHello, Scrapy!\n\n')
-        return values
-
-
 def to_datetime_obj(text):
     # convert string 1879-03-14 to Python date
     return datetime.strptime(text, '%Y-%m-%d').date()
-
-

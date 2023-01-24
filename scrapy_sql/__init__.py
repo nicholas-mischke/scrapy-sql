@@ -5,7 +5,6 @@ from pathlib import Path
 from .tableadapter import SQLAlchemyTableAdapter, ScrapyDeclarativeMetaAdapter
 from .feedexport import SQLAlchemyFeedStorage
 from .exporters import SQLAlchemyTableExporter
-import collections
 
 __all__ = [
     'ScrapyDeclarativeMetaAdapter',

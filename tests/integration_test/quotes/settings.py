@@ -9,7 +9,7 @@ NEWSPIDER_MODULE = 'quotes.spiders'
 
 ROBOTSTXT_OBEY = False
 CLOSESPIDER_ERRORCOUNT = 0
-# LOG_FILE = Path(__file__).parent.parent / 'quotes.log'
+LOG_FILE = Path(__file__).parent.parent / 'quotes.log'
 
 FEED_STORAGES = {
     'mysql':  'scrapy_sql.feedexport.SQLAlchemyFeedStorage',

@@ -1,12 +1,10 @@
 
-from datetime import datetime
-
 import pytest
 
+# from scrapy_sql.session import ScrapySession
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import Session, sessionmaker
 
-from data.models import *
 from data.rows import *
 
 
@@ -52,10 +50,10 @@ def session(db_engine, empty_db):
 
 
 @pytest.fixture
-def scrapy_session(db_engine, empty_db):
-    return
+def seeded_session():
+    pass
 
 
 @pytest.fixture
-def seeded_session():
-    pass
+def scrapy_session(db_engine, empty_db):
+    return

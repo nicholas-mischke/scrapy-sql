@@ -2,7 +2,7 @@
 from sqlalchemy.orm import Session, sessionmaker
 
 from scrapy_sql import SQLAlchemyTableAdapter
-from scrapy_sql._collections import ScrapyTableList
+from scrapy_sql.containers import ScrapyTableList
 
 
 class ScrapySession(Session):
@@ -20,6 +20,11 @@ class ScrapySession(Session):
             filtered_tables = ScrapyTableList(self)
 
             for related_table in relationship:
+
+                print('\n\n')
+                print(related_table)
+                input('\n\n')
+
                 filtered_table = self.filter_instance(related_table)
                 filtered_tables.append(filtered_table)
 
@@ -28,7 +33,7 @@ class ScrapySession(Session):
         # Don't add duplicates to self
         super().add(
             self.filter_instance(instance),
-            warn=_warn
+            _warn=_warn
         )
 
     def commit(self):
@@ -41,16 +46,15 @@ class ScrapySession(Session):
             adapter = SQLAlchemyTableAdapter(instance)
 
             for relationship in adapter.relationships:
-
-                filtered_tables = ScrapyTableList(self)
-
-                for filter_kwargs in adapter.filters.get(relationship.name):
-                    filtered_table = self.filter_instance(
-                        relationship.cls(**filter_kwargs)
+                try:
+                    query_table = getattr(
+                        instance,
+                        f'{relationship.name}QUERY'
                     )
-                    filtered_tables.append(filtered_table)
+                except AttributeError:
+                    continue
 
-                adapter[relationship.name] = filtered_tables
+                adapter[relationship.name] = self.filter_instance(query_table)
 
     def filter_instance(self, instance):
         """
