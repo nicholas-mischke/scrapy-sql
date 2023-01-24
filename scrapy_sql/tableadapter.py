@@ -11,7 +11,78 @@ from typing import Any, Iterator, Optional, List
 
 from sqlalchemy.inspection import inspect
 
-from scrapy_sql.containers import RelationshipCollection
+from sqlalchemy.orm.collections import InstrumentedList
+
+
+class Relationship:
+    def __init__(self, declarative_meta_instance, relationship):
+        self.name = relationship.class_attribute.key
+        self.cls = relationship.mapper.class_
+        self.columns = self.cls.__table__.columns
+
+        self.direction = relationship.direction.name
+        self.related_tables = getattr(
+            declarative_meta_instance,
+            self.name
+        )
+
+        self.single_relation = not isinstance(
+            self.related_tables,
+            InstrumentedList
+        )
+
+    @cached_property
+    def accepted_DOT_field_names(self):
+        return tuple(
+            f'{self.name}DOT{column.name}'
+            for column in self.columns
+        )
+
+    def __len__(self):
+        if self.single_relation:
+            return 0 if self.related_tables is None else 1
+        return len(self.related_tables)
+
+    def __iter__(self):  # Iterate tables in relationship
+        if self.single_relation:
+            if self.related_tables is None:
+                related_tables = []
+            else:
+                related_tables = [self.related_tables]
+        else:
+            related_tables = self.related_tables
+
+        return iter(related_tables)
+
+
+class RelationshipCollection:
+
+    def __init__(self, declarative_meta_instance):
+
+        self.relationships = tuple(
+            Relationship(declarative_meta_instance, r)
+            for r in inspect(declarative_meta_instance.__class__).relationships
+        )
+        self.relationships_dict = {
+            r.name: r for r in self.relationships
+        }
+
+    @cached_property
+    def names(self):
+        return tuple(r.name for r in self.relationships)
+
+    @cached_property
+    def accepted_DOT_field_names(self):
+        result = tuple()
+        for relationship in self:
+            result += relationship.accepted_DOT_field_names
+        return result
+
+    def __getitem__(self, relationship_name):
+        return self.relationships_dict[relationship_name]
+
+    def __iter__(self):
+        return iter(self.relationships)
 
 
 class _MixinColumnSQLAlchemyAdapter:
@@ -30,7 +101,7 @@ class _MixinColumnSQLAlchemyAdapter:
 
         # Relationships can be sat directly
         elif field_name in self.relationships.names:
-            relationship = self.item.relationships[field_name]
+            relationship = self.relationships[field_name]
 
             if relationship.single_relation:
                 if isinstance(value, relationship.cls):
@@ -53,19 +124,19 @@ class _MixinColumnSQLAlchemyAdapter:
                     value = [value]
                 elif (
                     hasattr(value, '__iter__')
-                    and all([isinstance(v, self.cls) for v in value])
+                    and all([isinstance(v, relationship.cls) for v in value])
                 ):
                     pass
                 else:
                     raise TypeError
 
-        # # This works for now, but needs to be update to support multiple fields
-        # elif field_name in self.relationships.accepted_DOT_field_names:
-        #     relationship_name, relationship_column = field_name.split('DOT')
-        #     relationship = self.item.relationships[relationship_name]
+        # This works for now, but needs to be update to support multiple fields
+        elif field_name in self.relationships.accepted_DOT_field_names:
+            relationship_name, relationship_column = field_name.split('DOT')
+            relationship = self.relationships[relationship_name]
 
-        #     field_name = f'{relationship_name}QUERY'
-        #     value = relationship.cls(**{relationship_column, value})
+            field_name = f'{relationship_name}QUERY'
+            value = relationship.cls(**{relationship_column: value})
         else:
             raise KeyError(
                 f"{self.item_class_name} does not support field: {field_name}"
@@ -160,7 +231,7 @@ class SQLAlchemyTableAdapter(_MixinColumnSQLAlchemyAdapter, AdapterInterface):
 
     @property
     def relationships(self):
-        return RelationshipCollection(self.item_class)
+        return RelationshipCollection(self.item)
 
     @property
     def filter_kwargs(self):

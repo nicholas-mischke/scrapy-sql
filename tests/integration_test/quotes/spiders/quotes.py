@@ -32,7 +32,7 @@ class QuotesSpider(CrawlSpider):
             loader = QuoteLoader(selector=quote)
 
             loader.add_xpath('quote',  './/span[@class="content"]/text()')
-            # loader.add_xpath('authorDOTname', './/a[@class="author"]/text()')
+            loader.add_xpath('authorDOTname', './/a[@class="author"]/text()')
 
             quote_row = loader.load_item()
 

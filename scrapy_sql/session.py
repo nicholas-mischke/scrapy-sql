@@ -2,13 +2,39 @@
 from sqlalchemy.orm import Session, sessionmaker
 
 from scrapy_sql import SQLAlchemyTableAdapter
-from scrapy_sql.containers import ScrapyTableList
+
+from collections import UserList
+
+
+class ScrapyTableList(UserList):
+    """
+    https://stackoverflow.com/questions/6654613/what-is-an-instrumentedlist-in-python
+
+    SQLAlchemy uses an InstrumentedList as list-like object
+    which is aware of insertions and deletions of related objects to an object
+    (via one-to-many and many-to-many relationships).
+
+    ScrapyInstrumentedList doesn't allow duplicate tables, or tables that'd
+    cause confilct with primary key / unique keys
+    """
+
+    def __init__(self, session, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.session = session
+
+    def append(self, table):
+        # Don't allow for integrety exceptions to be raised
+        table = self.session.filter_instance(table)
+
+        if table not in self.data:  # No duplicates
+            super().append(table)
 
 
 class ScrapySession(Session):
 
     def __init__(self, autoflush=False, *args, **kwargs):
         super().__init__(autoflush=autoflush, *args, **kwargs)
+        self.instances = []
 
     def add(self, instance, _warn=True):
 
@@ -26,17 +52,19 @@ class ScrapySession(Session):
             adapter[relationship.name] = filtered_tables
 
         # Don't add duplicates to self
-        super().add(
-            self.filter_instance(instance),
-            _warn=_warn
-        )
+        instance = self.filter_instance(instance)
+
+        if instance not in self.instances:
+            self.instances.append(instance)
+
+        super().add(instance, _warn)
 
     def commit(self):
         self.resolve_relationships()
         super().commit()
 
     def resolve_relationships(self):
-        for instance in self:
+        for instance in self.instances:
 
             adapter = SQLAlchemyTableAdapter(instance)
 
@@ -56,15 +84,20 @@ class ScrapySession(Session):
         If the session already contains an instance,
         or an instance with identical primary_keys / unique_keys
         return the instance already in session, else return the instance
+
+        This is meant to avoid raising sqlalchemy.exc.IntegrityError
         """
 
+        # Don't use adapter, just determine filter_kwargs here???
         adapter = SQLAlchemyTableAdapter(instance)
 
-        return self.query(
+        exists = self.query(
             instance.__class__
         ).filter_by(
             **adapter.filter_kwargs
-        ).first() or instance
+        ).first()
+
+        return exists if exists is not None else instance
 
 
 class scrapy_sessionmaker(sessionmaker):
