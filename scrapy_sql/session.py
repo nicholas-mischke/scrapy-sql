@@ -20,11 +20,6 @@ class ScrapySession(Session):
             filtered_tables = ScrapyTableList(self)
 
             for related_table in relationship:
-
-                print('\n\n')
-                print(related_table)
-                input('\n\n')
-
                 filtered_table = self.filter_instance(related_table)
                 filtered_tables.append(filtered_table)
 
