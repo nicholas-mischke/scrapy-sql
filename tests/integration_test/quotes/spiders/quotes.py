@@ -40,10 +40,12 @@ class QuotesSpider(CrawlSpider):
             quote_instance.author = author_loader.load_item()
 
             for tag in quote.xpath('.//span[@class="tag"]/text()').getall():
-                loader = TagLoader()
-                loader.add_value('name', tag)
+                tag_loader = TagLoader()
+                tag_loader.add_value('name', tag)
+                tag_instance = tag_loader.load_item()
+                yield tag_instance 
 
-                quote_instance.tags.append(loader.load_item())
+                quote_instance.tags.append(tag_instance)
 
             yield quote_instance
 
@@ -54,4 +56,7 @@ class QuotesSpider(CrawlSpider):
         loader.add_xpath('birthday', '//span[@class="date"]/text()')
         loader.add_xpath('bio',      '//span[@class="bio"]/text()')
 
-        yield loader.load_item()
+        author_instance = loader.load_item()
+        for i in range(5):
+            import copy
+            yield copy.deepcopy(author_instance)

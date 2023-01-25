@@ -49,27 +49,21 @@ if __name__ == '__main__':
 
     from pprint import pprint
 
-    sorted_tables_dict = {
-        table: [] for table in QuotesBase.metadata.sorted_tables
-    }
-    for k, v in sorted_tables_dict.items():
-        print(k)
-        print(v)
-        print('\n\n')
+    quote_I = Quote(
+        **{
+            'quote': 'If not us, who? If not now, when?'
+        }
+    )
 
-    # from scrapy_sql import SQLAlchemyTableAdapter
-    # from pprint import pprint
+    quote_II = Quote(
+        **{
+            'quote': 'If not us, who? If not now, when?'
+        }
+    )
 
-    # quote = Quote(
-    #     **{
-    #         'id': 1,
-    #         'author_id': 1,
-    #         'quote': 'If not us, who? If not now, when?'
-    #     }
-    # )
-    # adapter = SQLAlchemyTableAdapter(quote)
+    mylst = [quote_I]
 
-    # for column in adapter.columns:
-    #     print(f"{column=}, {column.primary_key=}, {column.unique=}")
+    pprint(quote_I.__dict__)
 
-    # pprint(adapter.asdict())
+    print(quote_I == quote_II)
+    print(quote_II in mylst)

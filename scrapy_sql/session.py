@@ -45,9 +45,9 @@ class UniqueList(UserList):
 
 class ScrapySession(Session):
 
-    def __init__(self, metadata, autoflush=False, *args, **kwargs):
+    def __init__(self, metadata, *args, **kwargs):
 
-        super().__init__(autoflush=autoflush, *args, **kwargs)
+        super().__init__(*args, **kwargs)
 
         self.instances = {
             table_cls: UniqueList()
@@ -62,12 +62,10 @@ class ScrapySession(Session):
         self.instances[instance.__class__.__table__].append(instance)
 
     def filter_instance(self, instance):
-        adapter = SQLAlchemyTableAdapter(instance)
-
         return self.query(
             instance.__class__
         ).filter_by(
-            **adapter.filter_kwargs
+            **instance.filter_kwargs
         ).first() or instance
 
     def commit(self):
@@ -75,9 +73,7 @@ class ScrapySession(Session):
         for table_cls, instances in self.instances.items():
             for instance in instances:
 
-                adapter = SQLAlchemyTableAdapter(instance)
-
-                for relationship in adapter.relationships:
+                for relationship in instance.relationships:
                     if relationship.single_relation:
                         setattr(
                             instance,
@@ -94,26 +90,5 @@ class ScrapySession(Session):
                         )
 
                 super().add(instance, _warn=True)
-                if adapter.relationships:
-                    super().commit()
 
-            # Commit once per Table if no attached Relationships
-            if instances:
-                super().commit()
-
-
-class scrapy_sessionmaker(sessionmaker):
-
-    def __init__(
-        self,
-        class_=ScrapySession,
-        autoflush=False,
-        *args,
-        **kwargs
-    ):
-        super().__init__(
-            class_=class_,
-            autoflush=autoflush,
-            *args,
-            **kwargs
-        )
+            super().commit()

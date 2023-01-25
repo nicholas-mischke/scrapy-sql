@@ -79,7 +79,7 @@ class _MixinColumnSQLAlchemyAdapter:
         return self.asdict()[field_name]
 
     def __setitem__(self, field_name: str, value: Any) -> None:
-        if field_name in self.column_names:
+        if field_name in self.field_names():
             setattr(self.item, field_name, value)
         else:
             raise KeyError(
@@ -97,7 +97,7 @@ class _MixinColumnSQLAlchemyAdapter:
         return iter(self.asdict())
 
     def __len__(self) -> int:
-        return len(self.columns) + len(self.relationships)
+        return len(self.columns)
 
 
 class SQLAlchemyTableAdapter(_MixinColumnSQLAlchemyAdapter, AdapterInterface):
@@ -150,43 +150,32 @@ class SQLAlchemyTableAdapter(_MixinColumnSQLAlchemyAdapter, AdapterInterface):
         return KeysView(self.asdict().keys())
 
     def asdict(self):
-        d = {}
+        return {
+            column_name: getattr(self.item, column_name)
+            for column_name in [c.name for c in self.item.columns]
+        }
 
-        for column in self.columns:
-            d[column.name] = getattr(self.item, column.name)
 
-        # Cannot add these, unless we let the adapter set relationships
-        # at this point, it seems better to not allow it.
-        # for r in self.relationships:
-        #     d[r.name] = r.related_tables
+class ScrapyDeclarativeMetaAdapter:
+    """
+    Scrapy default logging of an item writes the item to the log file, in a
+    format identical to str(my_dict).
 
-        return d
+    sqlalchemy.orm.decl_api.DeclarativeMeta classes use
+    sqlalchemy.ext.declarative.declarative_base() classes as parent classes.
+
+    If sqlalchemy.orm.decl_api.DeclarativeMeta classes instead have dual
+    inheritence by adding this class Scrapy logging output can behave
+    normally by utilizing this classes' __repr__ method
+    """
 
     @cached_property
     def columns(self):
-        return self.item.__table__.columns
-
-    @cached_property
-    def column_names(self):
-        return tuple(c.name for c in self.item.__table__.columns)
-
-    @property
-    def unique_columns(self):
-        """
-        return a dictionary with column names as keys
-        and column values as values, given column.unique is True
-        """
-        d = {}
-
-        for column in self.columns:
-            if column.unique is True:
-                d[column.name] = getattr(self.item, column.name)
-
-        return d
+        return self.__table__.columns
 
     @property
     def relationships(self):
-        return RelationshipCollection(self.item)
+        return RelationshipCollection(self)
 
     @property
     def filter_kwargs(self):
@@ -216,102 +205,36 @@ class SQLAlchemyTableAdapter(_MixinColumnSQLAlchemyAdapter, AdapterInterface):
 
             # Don't include None type Values in filter
             else:
-                column_value = getattr(self.item, column.name)
+                column_value = getattr(self, column.name)
                 if column_value:
                     d[column.name] = column_value
 
         return d
 
-
-class ScrapyDeclarativeMetaAdapter:
-    """
-    Scrapy default logging of an item writes the item to the log file, in a
-    format identical to str(my_dict).
-
-    sqlalchemy.orm.decl_api.DeclarativeMeta classes use
-    sqlalchemy.ext.declarative.declarative_base() classes as parent classes.
-
-    If sqlalchemy.orm.decl_api.DeclarativeMeta classes instead have dual
-    inheritence by adding this class Scrapy logging output can behave
-    normally by utilizing this classes' __repr__ method
-    """
-
-    pass
-
-    # @property
-    # def query_filter(self):
-    #     """
-    #     Mainly used by session.query(class).filter_by().first() calls
-    #     """
-    #     d = {}
-
-    #     for column in self.columns:
-    #         # # SQLite doesn't support DATE/TIME types, but instead converts them to strings.
-    #         # # Without this block of code this fact creates problems when
-    #         # # querying a session obj.
-    #         # # https://gist.github.com/danielthiel/8374607
-    #         # if isinstance(column.type, (DATE, Date)):
-    #         #     d[column.name] = func.DATE(column)
-    #         # elif isinstance(column.type, (DATETIME, DateTime)):
-    #         #     d[column.name] = func.DATETIME(column)
-    #         # elif isinstance(column.type, (TIME, Time)):
-    #         #     d[column.name] = func.TIME(column)
-    #         # elif isinstance(column.type, TIMESTAMP):
-    #         #     d[column.name] = func.TIMESTAMP(column)
-
-    #         # Don't include autoincrement columns when filtering
-    #         # to see which tables are already added to a session.
-    #         # This is because tables in session will have a number already
-    #         # while newly initalized tables will have `None` for the value.
-    #         if (
-    #             column.autoincrement is True
-    #             or (
-    #                 isinstance(column.type, Integer)
-    #                 and column.primary_key is True
-    #                 and column.foreign_keys == set()
-    #             )
-    #         ):
-    #             continue
-
-    #         # Foreign keys are typically sat with the relationship attrs
-    #         # Since these may or may not be set for individual table instances
-    #         # we'll avoid using them as a filter
-    #         elif column.foreign_keys != set():
-    #             continue
-
-    #         else:
-    #             d[column.name] = getattr(self, column.name)
-
-    #     return d
-
-    # def asdict(self):
-    #     d = {}
-
-    #     for column in self.columns:
-    #         d[column.name] = getattr(self, column.name)
-
-    #     for r in self.relationships:
-    #         d[r.name] = r.related_tables
-
-    #     for name in self.accepted_DOT_field_names:
-    #         d[name] = None
-
-    #     return d
-
     def __repr__(self):
         result = f"{self.__class__.__name__}("
 
-        for column in self.__table__.columns:
+        for column in self.columns:
             column_value = getattr(self, column.name)
             if isinstance(column_value, str):
                 result += f"{column.name}='{column_value}', "
             else:  # No quotation marks if not a string
                 result += f"{column.name}={column_value}, "
 
-        for r in inspect(self.__class__).relationships:
-            r_name = r.class_attribute.key
-            result += f"{r_name}={getattr(self, r_name)}, "
+        for r in self.relationships:
+            result += f"{r.name}={r.related_tables}, "
 
         return result.strip(", ") + ")"
 
     __str__ = __repr__
+
+    def __eq__(self, other):
+
+        if not (isinstance(other, type(self)) and isinstance(self, type(other))):
+            return False
+
+        for column in self.columns:
+            if getattr(self, column.name) != getattr(other, column.name):
+                return False
+
+        return True
