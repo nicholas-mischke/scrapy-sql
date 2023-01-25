@@ -32,20 +32,20 @@ class QuotesSpider(CrawlSpider):
 
             quote_loader = QuoteLoader(selector=quote)
             quote_loader.add_xpath('quote', './/span[@class="content"]/text()')
-            quote_instances = quote_loader.load_item()
+            quote_instance = quote_loader.load_item()
 
             author_loader = AuthorLoader(selector=quote)
             author_loader.add_xpath('name', './/a[@class="author"]/text()')
 
-            quote_instances.author = author_loader.load_item()
+            quote_instance.author = author_loader.load_item()
 
             for tag in quote.xpath('.//span[@class="tag"]/text()').getall():
                 loader = TagLoader()
                 loader.add_value('name', tag)
 
-                quote_instances.tags.append(loader.load_item())
+                quote_instance.tags.append(loader.load_item())
 
-            yield quote_instances
+            yield quote_instance
 
     def parse_author(self, response):
         loader = AuthorLoader(selector=response)
