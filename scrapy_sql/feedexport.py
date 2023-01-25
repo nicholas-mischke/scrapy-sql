@@ -47,12 +47,13 @@ class SQLAlchemyFeedStorage:
         self.engine = create_engine(self.uri)
 
         # Create database if it doesn't already exist
-        metadata.create_all(self.engine)
+        self.metadata = metadata
+        self.metadata.create_all(self.engine)
 
         self.commit = commit
 
     def open(self, spider):
-        return ScrapySession(bind=self.engine)
+        return ScrapySession(metadata=self.metadata, bind=self.engine)
 
     def store(self, session):
         if urlparse(self.uri).scheme == 'sqlite':  # SQLite is not thread safe

@@ -8,6 +8,8 @@ from itemadapter.adapter import AdapterInterface
 
 from collections.abc import KeysView
 from typing import Any, Iterator, Optional, List
+from scrapy.utils.misc import arg_to_iter
+
 
 from sqlalchemy.inspection import inspect
 
@@ -31,28 +33,11 @@ class Relationship:
             InstrumentedList
         )
 
-    @cached_property
-    def accepted_DOT_field_names(self):
-        return tuple(
-            f'{self.name}DOT{column.name}'
-            for column in self.columns
-        )
-
     def __len__(self):
-        if self.single_relation:
-            return 0 if self.related_tables is None else 1
-        return len(self.related_tables)
+        return len(arg_to_iter(self.related_tables))
 
     def __iter__(self):  # Iterate tables in relationship
-        if self.single_relation:
-            if self.related_tables is None:
-                related_tables = []
-            else:
-                related_tables = [self.related_tables]
-        else:
-            related_tables = self.related_tables
-
-        return iter(related_tables)
+        return iter(arg_to_iter(self.related_tables))
 
 
 class RelationshipCollection:
@@ -71,18 +56,17 @@ class RelationshipCollection:
     def names(self):
         return tuple(r.name for r in self.relationships)
 
-    @cached_property
-    def accepted_DOT_field_names(self):
-        result = tuple()
-        for relationship in self:
-            result += relationship.accepted_DOT_field_names
-        return result
-
     def __getitem__(self, relationship_name):
         return self.relationships_dict[relationship_name]
 
     def __iter__(self):
         return iter(self.relationships)
+
+    def __len__(self):
+        return len(self.relationships)
+
+    def __bool__(self):
+        return len(self) > 0
 
 
 class _MixinColumnSQLAlchemyAdapter:
@@ -95,54 +79,12 @@ class _MixinColumnSQLAlchemyAdapter:
         return self.asdict()[field_name]
 
     def __setitem__(self, field_name: str, value: Any) -> None:
-        # Column names can be sat directly
         if field_name in self.column_names:
-            pass
-
-        # Relationships can be sat directly
-        elif field_name in self.relationships.names:
-            relationship = self.relationships[field_name]
-
-            if relationship.single_relation:
-                if isinstance(value, relationship.cls):
-                    pass
-                elif (
-                    hasattr(value, '__iter__')
-                    and len(value) == 1
-                    and isinstance(value[0], relationship.cls)
-                ):
-                    value = value[0]
-                elif (
-                    hasattr(value, '__iter__')
-                    and len(value) == 0
-                ):
-                    value = None
-                else:
-                    raise TypeError
-            else:
-                if isinstance(value, relationship.cls):
-                    value = [value]
-                elif (
-                    hasattr(value, '__iter__')
-                    and all([isinstance(v, relationship.cls) for v in value])
-                ):
-                    pass
-                else:
-                    raise TypeError
-
-        # This works for now, but needs to be update to support multiple fields
-        elif field_name in self.relationships.accepted_DOT_field_names:
-            relationship_name, relationship_column = field_name.split('DOT')
-            relationship = self.relationships[relationship_name]
-
-            field_name = f'{relationship_name}QUERY'
-            value = relationship.cls(**{relationship_column: value})
+            setattr(self.item, field_name, value)
         else:
             raise KeyError(
                 f"{self.item_class_name} does not support field: {field_name}"
             )
-
-        setattr(self.item, field_name, value)
 
     def __delitem__(self, field_name: str) -> None:
         """
@@ -155,7 +97,7 @@ class _MixinColumnSQLAlchemyAdapter:
         return iter(self.asdict())
 
     def __len__(self) -> int:
-        return len(self.columns)
+        return len(self.columns) + len(self.relationships)
 
 
 class SQLAlchemyTableAdapter(_MixinColumnSQLAlchemyAdapter, AdapterInterface):
@@ -190,7 +132,7 @@ class SQLAlchemyTableAdapter(_MixinColumnSQLAlchemyAdapter, AdapterInterface):
 
     @classmethod
     def get_field_names_from_class(cls, item_class: type) -> Optional[List[str]]:
-        return item_class.asdict().keys()
+        return cls(item_class()).asdict().keys()
 
     def field_names(self) -> KeysView:
         """
@@ -205,7 +147,7 @@ class SQLAlchemyTableAdapter(_MixinColumnSQLAlchemyAdapter, AdapterInterface):
         For instance, Scrapy uses this method to define column names when
         exporting items to CSV.
         """
-        return KeysView(self.item.asdict().keys())
+        return KeysView(self.asdict().keys())
 
     def asdict(self):
         d = {}
@@ -213,11 +155,10 @@ class SQLAlchemyTableAdapter(_MixinColumnSQLAlchemyAdapter, AdapterInterface):
         for column in self.columns:
             d[column.name] = getattr(self.item, column.name)
 
+        # Cannot add these, unless we let the adapter set relationships
+        # at this point, it seems better to not allow it.
         # for r in self.relationships:
         #     d[r.name] = r.related_tables
-
-        for name in self.relationships.accepted_DOT_field_names:
-            d[name] = None
 
         return d
 
@@ -230,34 +171,56 @@ class SQLAlchemyTableAdapter(_MixinColumnSQLAlchemyAdapter, AdapterInterface):
         return tuple(c.name for c in self.item.__table__.columns)
 
     @property
+    def unique_columns(self):
+        """
+        return a dictionary with column names as keys
+        and column values as values, given column.unique is True
+        """
+        d = {}
+
+        for column in self.columns:
+            if column.unique is True:
+                d[column.name] = getattr(self.item, column.name)
+
+        return d
+
+    @property
     def relationships(self):
         return RelationshipCollection(self.item)
 
     @property
     def filter_kwargs(self):
-        d = {
-            column.name: getattr(self.item, column.name)
-            for column in self.columns
-        }
+        d = {}
 
-        return {k: v for k, v in d.items() if v is not None}
+        for column in self.columns:
 
-        # # Query based on primary-key and unique keys
-        # for column in self.columns:
-        #     is_primary_key = column.primary_key
-        #     is_autoincrement = (
-        #         column.autoincrement is True
-        #         or (
-        #             isinstance(column.type, Integer)
-        #             and column.primary_key is True
-        #             and column.foreign_keys == set()
-        #         )
-        #     )
-        #     is_unique = column.unique
+            # Don't include autoincrement columns when filtering
+            # to see which tables are already added to a session.
+            # This is because tables in session will have a number already
+            # while newly initalized tables will have `None` for the value.
+            if (
+                column.autoincrement is True
+                or (
+                    isinstance(column.type, Integer)
+                    and column.primary_key is True
+                    and column.foreign_keys == set()
+                )
+            ):
+                continue
 
-        #     column_value = getattr(self.item, column.name)
+            # Foreign keys are typically sat with the relationship attrs
+            # Since these may or may not be set for individual table instances
+            # we'll avoid using them as a filter
+            elif column.foreign_keys != set():
+                continue
 
-        # return d
+            # Don't include None type Values in filter
+            else:
+                column_value = getattr(self.item, column.name)
+                if column_value:
+                    d[column.name] = column_value
+
+        return d
 
 
 class ScrapyDeclarativeMetaAdapter:
@@ -345,8 +308,9 @@ class ScrapyDeclarativeMetaAdapter:
             else:  # No quotation marks if not a string
                 result += f"{column.name}={column_value}, "
 
-        # for relationship in self.relationships:
-        #     result += f"{relationship.name}={relationship.related_tables},"
+        for r in inspect(self.__class__).relationships:
+            r_name = r.class_attribute.key
+            result += f"{r_name}={getattr(self, r_name)}, "
 
         return result.strip(", ") + ")"
 

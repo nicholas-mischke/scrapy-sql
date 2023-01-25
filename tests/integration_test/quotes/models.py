@@ -14,18 +14,18 @@ class Author(QuotesBase, ScrapyDeclarativeMetaAdapter):
 
     id = Column(Integer, primary_key=True)
 
-    name = Column(String(50), unique=True)
-    birthday = Column(Date)
-    bio = Column(Text)
+    name = Column(String(50), unique=True, nullable=False)
+    birthday = Column(Date, nullable=False)
+    bio = Column(Text, nullable=False)
 
 
 class Quote(QuotesBase, ScrapyDeclarativeMetaAdapter):
     __tablename__ = 'quote'
 
     id = Column(Integer, primary_key=True)
-    author_id = Column(ForeignKey('author.id'))
+    author_id = Column(ForeignKey('author.id'), nullable=False)
 
-    quote = Column(Text)
+    quote = Column(Text, nullable=False)
 
     author = relationship('Author')
     tags = relationship('Tag', secondary='quote_tag')
@@ -35,7 +35,7 @@ class Tag(QuotesBase, ScrapyDeclarativeMetaAdapter):
     __tablename__ = 'tag'
 
     id = Column(Integer, primary_key=True)
-    name = Column(String(31), unique=True)
+    name = Column(String(31), unique=True, nullable=False)
 
 
 t_quote_tag = Table(
@@ -47,16 +47,29 @@ t_quote_tag = Table(
 
 if __name__ == '__main__':
 
-    from scrapy_sql import SQLAlchemyTableAdapter
     from pprint import pprint
 
-    quote = Quote(
-        **{
-            'id': 1,
-            'author_id': 1,
-            'quote': 'If not us, who? If not now, when?'
-        }
-    )
-    adapter = SQLAlchemyTableAdapter(quote)
+    sorted_tables_dict = {
+        table: [] for table in QuotesBase.metadata.sorted_tables
+    }
+    for k, v in sorted_tables_dict.items():
+        print(k)
+        print(v)
+        print('\n\n')
 
-    pprint(adapter.asdict())
+    # from scrapy_sql import SQLAlchemyTableAdapter
+    # from pprint import pprint
+
+    # quote = Quote(
+    #     **{
+    #         'id': 1,
+    #         'author_id': 1,
+    #         'quote': 'If not us, who? If not now, when?'
+    #     }
+    # )
+    # adapter = SQLAlchemyTableAdapter(quote)
+
+    # for column in adapter.columns:
+    #     print(f"{column=}, {column.primary_key=}, {column.unique=}")
+
+    # pprint(adapter.asdict())

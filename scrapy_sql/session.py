@@ -1,12 +1,13 @@
 
 from sqlalchemy.orm import Session, sessionmaker
 
+from scrapy.utils.misc import arg_to_iter
 from scrapy_sql import SQLAlchemyTableAdapter
 
 from collections import UserList
 
 
-class ScrapyTableList(UserList):
+class UniqueList(UserList):
     """
     https://stackoverflow.com/questions/6654613/what-is-an-instrumentedlist-in-python
 
@@ -18,77 +19,92 @@ class ScrapyTableList(UserList):
     cause confilct with primary key / unique keys
     """
 
-    def __init__(self, session, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.session = session
+    def __init__(self, *args, **kwargs):
 
-    def append(self, table):
-        # Don't allow for integrety exceptions to be raised
-        table = self.session.filter_instance(table)
+        # Making a list via list comprehension
+        if (
+            len(args) == 1
+            and hasattr(args[0], '__iter__')
+        ):
+            super().__init__(*tuple(), **kwargs)
 
-        if table not in self.data:  # No duplicates
-            super().append(table)
+            for obj in args[0]:
+                if obj not in self.data:
+                    super().append(obj)
+        else:
+            super().__init__(*args, **kwargs)
+
+    def append(self, obj):
+        if obj not in self.data:  # No duplicates
+            super().append(obj)
+
+    def extend(self, iter):
+        for obj in arg_to_iter(iter):
+            self.append(obj)
 
 
 class ScrapySession(Session):
 
-    def __init__(self, autoflush=False, *args, **kwargs):
+    def __init__(self, metadata, autoflush=False, *args, **kwargs):
+
         super().__init__(autoflush=autoflush, *args, **kwargs)
-        self.instances = []
 
-    def add(self, instance, _warn=True):
+        self.metadata = metadata
+        self.sorted_tables = self.metadata.sorted_tables
 
-        adapter = SQLAlchemyTableAdapter(instance)
+        self.instances = {
+            table_cls: UniqueList()
+            for table_cls in self.sorted_tables
+        }
 
-        # Make sure to not add duplicates via relationships
-        for relationship in adapter.relationships:
+    def add(self, instance):
+        """
+        Only adds DeclarativeMeta obj scraped directly from the spider.
+        Does not "add" DeclarativeMeta obj within relationship attrs.
+        """
+        self.instances[instance.__class__.__table__].append(instance)
 
-            filtered_tables = ScrapyTableList(self)
+    def resolve_potential_IntegrityErrors(self):
 
-            for related_table in relationship:
-                filtered_table = self.filter_instance(related_table)
-                filtered_tables.append(filtered_table)
+        for table_cls, instances in self.instances.items():
+            print(f"{table_cls=}")
+            for i, instance in enumerate(instances):
+                print('------------------------------',
+                      i, '------------------------------')
+                print(instance)
 
-            adapter[relationship.name] = filtered_tables
+                adapter = SQLAlchemyTableAdapter(instance)
 
-        # Don't add duplicates to self
-        instance = self.filter_instance(instance)
+                for relationship in adapter.relationships:
+                    print('    ', relationship.name, ':')
 
-        if instance not in self.instances:
-            self.instances.append(instance)
+                    if relationship.single_relation:
+                        setattr(
+                            instance,
+                            relationship.name,
+                            self.filter_instance(relationship.related_tables)
+                        )
+                    else:
+                        setattr(
+                            instance,
+                            relationship.name,
+                            UniqueList(
+                                [self.filter_instance(i) for i in relationship]
+                            )
+                        )
 
-        super().add(instance, _warn)
+                super().add(instance, _warn=True)
+                if adapter.relationships:
+                    super().commit()
+                    print(instance)
 
-    def commit(self):
-        self.resolve_relationships()
-        super().commit()
-
-    def resolve_relationships(self):
-        for instance in self.instances:
-
-            adapter = SQLAlchemyTableAdapter(instance)
-
-            for relationship in adapter.relationships:
-                try:
-                    query_table = getattr(
-                        instance,
-                        f'{relationship.name}QUERY'
-                    )
-                except AttributeError:
-                    continue
-
-                adapter[relationship.name] = self.filter_instance(query_table)
+            super().commit()
+            print('\nNow in Session')
+            for _ in self:
+                print(_)
+            print('\n\n')
 
     def filter_instance(self, instance):
-        """
-        If the session already contains an instance,
-        or an instance with identical primary_keys / unique_keys
-        return the instance already in session, else return the instance
-
-        This is meant to avoid raising sqlalchemy.exc.IntegrityError
-        """
-
-        # Don't use adapter, just determine filter_kwargs here???
         adapter = SQLAlchemyTableAdapter(instance)
 
         exists = self.query(
@@ -97,7 +113,17 @@ class ScrapySession(Session):
             **adapter.filter_kwargs
         ).first()
 
+        print(f"        {instance=}")
+        print(f"        {adapter.filter_kwargs=}")
+        print(f"        {exists=}")
+        print(f"        {exists==instance=}")
+        print()
+
         return exists if exists is not None else instance
+
+    def commit(self):
+        self.resolve_potential_IntegrityErrors()
+        super().commit()
 
 
 class scrapy_sessionmaker(sessionmaker):
@@ -115,3 +141,12 @@ class scrapy_sessionmaker(sessionmaker):
             *args,
             **kwargs
         )
+
+
+if __name__ == '__main__':
+
+    lst = ScrapyUniqueList(['hi', 'hello', 'hi'])
+    print(lst)
+
+    lst = ScrapyUniqueList([5, 7, 5])
+    print(lst)
