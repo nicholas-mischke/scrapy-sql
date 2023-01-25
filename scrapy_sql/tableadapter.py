@@ -39,35 +39,6 @@ class Relationship:
         return iter(arg_to_iter(self.related_tables))
 
 
-class RelationshipCollection:
-
-    def __init__(self, declarative_meta_instance):
-
-        self.relationships = tuple(
-            Relationship(declarative_meta_instance, r)
-            for r in inspect(declarative_meta_instance.__class__).relationships
-        )
-        self.relationships_dict = {
-            r.name: r for r in self.relationships
-        }
-
-    @cached_property
-    def names(self):
-        return tuple(r.name for r in self.relationships)
-
-    def __getitem__(self, relationship_name):
-        return self.relationships_dict[relationship_name]
-
-    def __iter__(self):
-        return iter(self.relationships)
-
-    def __len__(self):
-        return len(self.relationships)
-
-    def __bool__(self):
-        return len(self) > 0
-
-
 class _MixinColumnSQLAlchemyAdapter:
 
     @property
@@ -174,7 +145,10 @@ class ScrapyDeclarativeMetaAdapter:
 
     @property
     def relationships(self):
-        return RelationshipCollection(self)
+        return tuple(
+            Relationship(self, relationship)
+            for relationship in inspect(self.__class__).relationships
+        )
 
     @property
     def filter_kwargs(self):
