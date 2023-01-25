@@ -1,22 +1,24 @@
 
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-
+# Project Imports
 from scrapy_sql.session import ScrapySession
 
+# Scrapy / Twisted Imports
 from scrapy.extensions.feedexport import IFeedStorage, build_storage
 from scrapy.exceptions import NotConfigured
 from scrapy.utils.misc import load_object
 
 from twisted.internet import threads
+
+# SQLAlchemy Imports
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+
+# 3rd 🎉 Imports
 from urllib.parse import urlparse
 from zope.interface import implementer
 
 
 def _default_commit(session):
-    """
-    resolve one-to-many relationships etc.
-    """
     session.commit()
     session.close()
 
@@ -33,12 +35,13 @@ class SQLAlchemyFeedStorage:
         except KeyError:
             raise NotConfigured
 
-        echo = False
         if (
             feed_options.get('engine_echo', False)
             or crawler.settings.get('SQLALCHEMY_ENGINE_ECHO', False)
         ) is True:
             echo = True
+        else:
+            echo = False
 
         sessionmaker_kwargs = (
             feed_options.get('sessionmaker_kwargs')
@@ -97,7 +100,6 @@ class SQLAlchemyFeedStorage:
 
     def open(self, spider):
         return sessionmaker(**self.sessionmaker_kwargs)()
-        # return ScrapySession(metadata=self.metadata, bind=self.engine)
 
     def store(self, session):
         if urlparse(self.uri).scheme == 'sqlite':  # SQLite is not thread safe

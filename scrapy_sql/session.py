@@ -1,10 +1,7 @@
 
-from sqlalchemy.orm import Session, sessionmaker
-
-from scrapy.utils.misc import arg_to_iter
-from scrapy_sql import SQLAlchemyTableAdapter
-
 from collections import UserList
+from scrapy.utils.misc import arg_to_iter
+from sqlalchemy.orm import Session
 
 
 class UniqueList(UserList):
@@ -70,25 +67,27 @@ class ScrapySession(Session):
 
     def commit(self):
 
-        for table_cls, instances in self.instances.items():
-            for instance in instances:
+        # Flattened list in sorted_tables order
+        instances = [i for values in self.instances.values() for i in values]
 
-                for relationship in instance.relationships:
-                    if relationship.single_relation:
-                        setattr(
-                            instance,
-                            relationship.name,
-                            self.filter_instance(relationship.related_tables)
+        for instance in instances:
+
+            for relationship in instance.relationships:
+                if relationship.single_relation:
+                    setattr(
+                        instance,
+                        relationship.name,
+                        self.filter_instance(relationship.related_tables)
+                    )
+                else:
+                    setattr(
+                        instance,
+                        relationship.name,
+                        UniqueList(
+                            [self.filter_instance(i) for i in relationship]
                         )
-                    else:
-                        setattr(
-                            instance,
-                            relationship.name,
-                            UniqueList(
-                                [self.filter_instance(i) for i in relationship]
-                            )
-                        )
+                    )
 
-                super().add(instance, _warn=True)
+            super().add(instance, _warn=True)
 
-            super().commit()
+        super().commit()

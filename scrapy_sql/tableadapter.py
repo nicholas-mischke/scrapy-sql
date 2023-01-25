@@ -1,19 +1,18 @@
 
-# For Item Adapters
-from sqlalchemy import Table, Integer
-from sqlalchemy.orm.decl_api import DeclarativeMeta
-from functools import cached_property
-
-from itemadapter.adapter import AdapterInterface
-
-from collections.abc import KeysView
-from typing import Any, Iterator, Optional, List
+# Scrapy / Twisted Imports
+from itemadapter.adapter import AdapterInterface  # Basically scrapy...
 from scrapy.utils.misc import arg_to_iter
 
-
+# SQLAlchemy Imports
+from sqlalchemy import Table, Integer
 from sqlalchemy.inspection import inspect
-
 from sqlalchemy.orm.collections import InstrumentedList
+from sqlalchemy.orm.decl_api import DeclarativeMeta
+
+# 3rd 🎉 Imports
+from collections.abc import KeysView
+from functools import cached_property
+from typing import Any, Iterator, Optional, List
 
 
 class Relationship:
@@ -79,7 +78,7 @@ class _MixinColumnSQLAlchemyAdapter:
         return self.asdict()[field_name]
 
     def __setitem__(self, field_name: str, value: Any) -> None:
-        if field_name in self.field_names():
+        if field_name in self.asdict():
             setattr(self.item, field_name, value)
         else:
             raise KeyError(
@@ -97,7 +96,7 @@ class _MixinColumnSQLAlchemyAdapter:
         return iter(self.asdict())
 
     def __len__(self) -> int:
-        return len(self.columns)
+        return len(self.asdict())
 
 
 class SQLAlchemyTableAdapter(_MixinColumnSQLAlchemyAdapter, AdapterInterface):
