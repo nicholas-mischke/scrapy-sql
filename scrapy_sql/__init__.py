@@ -1,18 +1,20 @@
 
 # Declare top-level shortcuts
-from .exporters import SQLAlchemyTableExporter
+from .declarative_base import ScrapyDeclarativeBase
+from .exporters import SQLAlchemyInstanceExporter
 from .feedexport import SQLAlchemyFeedStorage
-from .tableadapter import SQLAlchemyTableAdapter, ScrapyDeclarativeMetaAdapter
+from .instanceadapter import SQLAlchemyInstanceAdapter
 
 
 __all__ = [
-    'SQLAlchemyTableExporter',
+    'ScrapyDeclarativeBase',
+    'SQLAlchemyInstanceExporter',
     'SQLAlchemyFeedStorage',
-    'ScrapyDeclarativeMetaAdapter'
+    'SQLAlchemyInstanceAdapter'
 ]
 
 # Update scrapy ItemAdapter class to work with SQLAlchemy.
 import itemadapter
 itemadapter.adapter.ItemAdapter.ADAPTER_CLASSES.appendleft(
-    SQLAlchemyTableAdapter
+    SQLAlchemyInstanceAdapter
 )

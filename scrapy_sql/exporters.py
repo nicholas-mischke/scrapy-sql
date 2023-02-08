@@ -3,11 +3,11 @@ from scrapy.exporters import BaseItemExporter
 from scrapy.utils.misc import load_object
 
 
-def _default_add(session, table):
-    session.add(table)
+def _default_add(session, instance):
+    session.add(instance)
 
 
-class SQLAlchemyTableExporter(BaseItemExporter):
+class SQLAlchemyInstanceExporter(BaseItemExporter):
 
     def __init__(self, session, **kwargs):
         self.session = session
@@ -16,5 +16,5 @@ class SQLAlchemyTableExporter(BaseItemExporter):
             or _default_add
         )
 
-    def export_item(self, table):
-        self.add(self.session, table)
+    def export_item(self, instance):
+        self.add(self.session, instance)

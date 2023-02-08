@@ -1,6 +1,5 @@
 
 from pathlib import Path
-import math
 
 BOT_NAME = 'quotes'
 
@@ -21,6 +20,7 @@ FEED_EXPORTERS = {
 FEEDS = {
     'sqlite:///quotes.db': {
         'format': 'sql',
+        'declarative_base': 'quotes.models.QuotesBase',
         'item_classes': (
             'quotes.models.Author',
             'quotes.models.Quote',

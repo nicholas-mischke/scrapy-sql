@@ -1,6 +1,6 @@
 
 # Project Imports
-from scrapy_sql.session import ScrapySession
+from scrapy_sql.session import ScrapyBulkSession, ScrapyUnitOfWorkSession
 
 # Scrapy / Twisted Imports
 from scrapy.extensions.feedexport import IFeedStorage, build_storage
@@ -30,23 +30,29 @@ class SQLAlchemyFeedStorage:
     def from_crawler(cls, crawler, uri, *, feed_options=None):
 
         try:
-            item_classes = feed_options['item_classes']
-            metadata = load_object(item_classes[0]).metadata
+            item_classes = feed_options['item_classes'] # Be sure these are listed
+            Base = load_object(feed_options['declarative_base'])
         except KeyError:
             raise NotConfigured
 
-        if (
+        echo = (
             feed_options.get('engine_echo', False)
             or crawler.settings.get('SQLALCHEMY_ENGINE_ECHO', False)
-        ) is True:
-            echo = True
-        else:
-            echo = False
+        )
 
         sessionmaker_kwargs = (
             feed_options.get('sessionmaker_kwargs')
             or crawler.settings.get('SQLALCHEMY_SESSIONMAKER_KWARGS')
-            or {'class_': ScrapySession, 'metadata': metadata}
+            # or {
+            #     'class_': ScrapySession,
+            #     'autoflush': False,  # INSERT not INSERT IGNORE or UPSERTS
+            #     'declarative_base': Base,
+            #     # 'engine' key is sat in __init__
+            # }
+            or {
+                'class_': ScrapyUnitOfWorkSession,
+                'declarative_base': Base,
+            }
         )
 
         commit = (
@@ -69,7 +75,7 @@ class SQLAlchemyFeedStorage:
         return build_storage(
             cls,
             uri,
-            metadata=metadata,
+            declarative_base=Base,
             echo=echo,
             sessionmaker_kwargs=sessionmaker_kwargs,
             commit=load_object(commit),
@@ -80,17 +86,18 @@ class SQLAlchemyFeedStorage:
         self,
         uri,
         *,
-        metadata,
+        declarative_base,
         echo,
         sessionmaker_kwargs,
         commit,
         feed_options=None
     ):
         self.uri = uri
-        self.engine = create_engine(self.uri, echo=echo)
+        self.engine = create_engine(self.uri, echo=True)
 
         # Create database if it doesn't already exist
-        self.metadata = metadata
+        self.Base = declarative_base
+        self.metadata = self.Base.metadata
         self.metadata.create_all(self.engine)
 
         sessionmaker_kwargs.setdefault('bind', self.engine)
