@@ -4,7 +4,8 @@ from scrapy.utils.misc import arg_to_iter
 # SQLAlchemy Imports
 from sqlalchemy import Integer, insert
 from sqlalchemy.inspection import inspect
-from sqlalchemy.orm.collections import DeclarativeBase, InstrumentedList
+from sqlalchemy.orm import DeclarativeBase
+from sqlalchemy.orm.collections import InstrumentedList
 
 
 # 3rd 🎉 Imports

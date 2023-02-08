@@ -1,3 +1,5 @@
+# Project imports
+from scrapy_sql.declarative_base import ScrapyDeclarativeBase
 
 # Scrapy / Twisted Imports
 from itemadapter.adapter import AdapterInterface  # Basically scrapy...
@@ -5,9 +7,6 @@ from itemadapter.adapter import AdapterInterface  # Basically scrapy...
 # SQLAlchemy Imports
 from sqlalchemy import Table
 from sqlalchemy.orm.decl_api import DeclarativeMeta
-
-# Project imports
-from declarative_base import ScrapyDeclarativeBase
 
 # 3rd 🎉 Imports
 from collections.abc import KeysView

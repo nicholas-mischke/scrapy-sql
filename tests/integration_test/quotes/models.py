@@ -3,14 +3,17 @@ from sqlalchemy import (
     insert, select,
     Column, Date, ForeignKey, Integer, String, Table, Text
 )
-from sqlalchemy.orm import declarative_base, relationship
+from sqlalchemy.orm import DeclarativeBase, relationship
 from scrapy_sql import ScrapyDeclarativeBase
 from descriptors import classproperty, cachedclassproperty
 
 
-class QuotesBase(ScrapyDeclarativeBase):
-    pass
+# class QuotesBase(ScrapyDeclarativeBase):
+#     pass
 
+
+class QuotesBase(DeclarativeBase):
+    pass
 
 class Author(QuotesBase):
     __tablename__ = 'author'

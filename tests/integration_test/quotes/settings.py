@@ -15,7 +15,7 @@ FEED_STORAGES = {
     'sqlite': 'scrapy_sql.feedexport.SQLAlchemyFeedStorage'
 }
 FEED_EXPORTERS = {
-    'sql': 'scrapy_sql.exporters.SQLAlchemyTableExporter'
+    'sql': 'scrapy_sql.exporters.SQLAlchemyInstanceExporter'
 }
 FEEDS = {
     'sqlite:///quotes.db': {
