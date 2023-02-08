@@ -11,8 +11,8 @@ __all__ = [
 ]
 
 # Update scrapy ItemAdapter class to work with SQLAlchemy.
-import itemadapter
 from .instanceadapter import SQLAlchemyInstanceAdapter
+import itemadapter
 
 itemadapter.adapter.ItemAdapter.ADAPTER_CLASSES.appendleft(
     SQLAlchemyInstanceAdapter
