@@ -98,6 +98,7 @@ class ScrapyUnitOfWorkSession(Session):
                         )
                     )
 
+            instance = self.filter_instance(instance) # Insert Ignore 
             super().add(instance, _warn=True)
 
         super().commit()
