@@ -4,7 +4,6 @@ from scrapy.utils.misc import arg_to_iter
 # SQLAlchemy Imports
 from sqlalchemy import Integer, insert
 from sqlalchemy.inspection import inspect
-from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy.orm.collections import InstrumentedList
 
 
@@ -25,12 +24,12 @@ class Relationship:
         self.columns = self.cls.__table__.columns
         self.direction = relationship.direction.name
 
-        self.related_instance = getattr(
+        self.related_instances = getattr(
             instance,
             self.name
         )
         self.single_relation = not isinstance(
-            self.related_instance,
+            self.related_instances,
             InstrumentedList
         )
 
@@ -38,7 +37,7 @@ class Relationship:
         return len(arg_to_iter(self.related_instance))
 
     def __iter__(self):  # Iterate tables in relationship
-        return iter(arg_to_iter(self.related_instance))
+        return iter(arg_to_iter(self.related_instances))
 
     def __repr__(self):
         return str(self.__dict__)
@@ -46,7 +45,7 @@ class Relationship:
     __str__ = __repr__
 
 
-class ScrapyDeclarativeBase(DeclarativeBase):
+class ScrapyDeclarativeBaseExtension:
     """
     Scrapy default logging of an item writes the item to the log file, in a
     format identical to str(my_dict).
@@ -112,7 +111,7 @@ class ScrapyDeclarativeBase(DeclarativeBase):
 
             # Don't include NoneType in filter values
             elif column_value is not None:
-                [column.name] = column_value
+                d[column.name] = column_value
 
         return d
 
@@ -139,6 +138,10 @@ class ScrapyDeclarativeBase(DeclarativeBase):
 
         return result.strip(", ") + ")"
 
+    @classmethod
+    def from_log_file(cls, string):
+        pass
+
     __str__ = __repr__
 
     def __eq__(self, other):
@@ -154,10 +157,6 @@ class ScrapyDeclarativeBase(DeclarativeBase):
                 return False
 
         return True
-
-    @classmethod
-    def from_log_file(cls, string):
-        pass
 
     @classproperty
     def mapped_orm_classes(cls):

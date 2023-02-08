@@ -1,11 +1,11 @@
 
 # Declare top-level shortcuts
-from .declarative_base import ScrapyDeclarativeBase
+from .declarative_base import ScrapyDeclarativeBaseExtension
 from .exporters import SQLAlchemyInstanceExporter
 from .feedexport import SQLAlchemyFeedStorage
 
 __all__ = [
-    'ScrapyDeclarativeBase',
+    'ScrapyDeclarativeBaseExtension',
     'SQLAlchemyInstanceExporter',
     'SQLAlchemyFeedStorage'
 ]

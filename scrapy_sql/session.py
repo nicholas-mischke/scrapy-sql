@@ -1,6 +1,7 @@
 
 from collections import UserList
 from scrapy.utils.misc import arg_to_iter
+from scrapy.utils.python import flatten
 from sqlalchemy.orm import Session
 
 
@@ -86,7 +87,7 @@ class ScrapyUnitOfWorkSession(Session):
                     setattr(
                         instance,
                         relationship.name,
-                        self.filter_instance(relationship.related_tables)
+                        self.filter_instance(relationship.related_instances)
                     )
                 else:
                     setattr(
@@ -144,10 +145,13 @@ class ScrapyBulkSession(Session):
         # Get a lst of lst from the self.instances dict
         # Flatten into a single list that preserves the sorted_tables
         # order of the metadata
-        return [
-            instance for instances in self.instances.values()
-            for instance in instances
-        ]
+
+        # return [
+        #     instance for instances in self.instances.values()
+        #     for instance in instances
+        # ]
+
+        return flatten(self.instances.values())
 
     @staticmethod
     def is_subdict(dict, possible_subdict):

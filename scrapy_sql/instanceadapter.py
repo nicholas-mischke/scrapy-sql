@@ -1,12 +1,8 @@
-# Project imports
-from scrapy_sql.declarative_base import ScrapyDeclarativeBase
-
 # Scrapy / Twisted Imports
 from itemadapter.adapter import AdapterInterface  # Basically scrapy...
 
 # SQLAlchemy Imports
-from sqlalchemy import Table
-from sqlalchemy.orm.decl_api import DeclarativeMeta
+from sqlalchemy.orm.decl_api import DeclarativeAttributeIntercept
 
 # 3rd 🎉 Imports
 from collections.abc import KeysView
@@ -49,7 +45,7 @@ class SQLAlchemyInstanceAdapter(_MixinColumnSQLAlchemyAdapter, AdapterInterface)
     https://github.com/scrapy/itemadapter#extending-itemadapter
     """
 
-    accepted_classes = (DeclarativeMeta, ScrapyDeclarativeBase)
+    accepted_classes = (DeclarativeAttributeIntercept, )
 
     def __init__(self, item) -> None:
         super().__init__(item)

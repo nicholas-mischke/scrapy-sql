@@ -4,18 +4,15 @@ from sqlalchemy import (
     Column, Date, ForeignKey, Integer, String, Table, Text
 )
 from sqlalchemy.orm import DeclarativeBase, relationship
-from scrapy_sql import ScrapyDeclarativeBase
+from scrapy_sql import ScrapyDeclarativeBaseExtension
 from descriptors import classproperty, cachedclassproperty
-
-
-# class QuotesBase(ScrapyDeclarativeBase):
-#     pass
 
 
 class QuotesBase(DeclarativeBase):
     pass
 
-class Author(QuotesBase):
+
+class Author(QuotesBase, ScrapyDeclarativeBaseExtension):
     __tablename__ = 'author'
 
     id = Column(Integer, primary_key=True)
@@ -25,14 +22,14 @@ class Author(QuotesBase):
     bio = Column(Text, nullable=False)
 
 
-class Tag(QuotesBase):
+class Tag(QuotesBase, ScrapyDeclarativeBaseExtension):
     __tablename__ = 'tag'
 
     id = Column(Integer, primary_key=True)
     name = Column(String(31), unique=True, nullable=False)
 
 
-class Quote(QuotesBase):
+class Quote(QuotesBase, ScrapyDeclarativeBaseExtension):
     __tablename__ = 'quote'
 
     id = Column(Integer, primary_key=True)
@@ -49,3 +46,13 @@ t_quote_tag = Table(
     Column('quote_id', ForeignKey('quote.id'), primary_key=True),
     Column('tag_id',   ForeignKey('tag.id'),   primary_key=True)
 )
+
+
+if __name__ == '__main__':
+    from sqlalchemy.orm.decl_api import DeclarativeAttributeIntercept
+
+    item_class = Author
+    accepted_classes = (DeclarativeAttributeIntercept, )
+
+    print(type(item_class) in accepted_classes)
+    print(isinstance(type(item_class()), accepted_classes))
