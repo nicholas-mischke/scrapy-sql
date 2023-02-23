@@ -31,24 +31,24 @@ class QuotesSpider(CrawlSpider):
     def parse_quotes(self, response):
 
         for quote in response.xpath('//div[@class="quote"]'):
+
             quote_loader = QuoteLoader(selector=quote)
+            author_loader = AuthorLoader(selector=quote)
 
-            # Pass Author.name to itemloader to return
-            # select(Author.id).where(Author.name == './/a[@class="author"]/text()')
-            quote_loader.add_xpath('author_id', './/a[@class="author"]/text()')
+            author_loader.add_xpath('name', './/a[@class="author"]/text()')
+            author_instance = author_loader.load_item()
+
+            # There may be a better way to do this...
+            # Some way of loading object with subquery for this field 
             quote_loader.add_xpath('quote', './/span[@class="content"]/text()')
-
             quote_instance = quote_loader.load_item()
+            quote_instance.author_id = author_instance.subquery()
 
             for tag in quote.xpath('.//span[@class="tag"]/text()').getall():
                 tag_loader = TagLoader()
-
                 tag_loader.add_value('name', tag)
-                tag_instance = tag_loader.load_item()
 
-                yield tag_instance
-
-                quote_instance.tags.append(tag_instance)
+                quote_instance.tags.append(tag_loader.load_item())
 
             yield quote_instance
 

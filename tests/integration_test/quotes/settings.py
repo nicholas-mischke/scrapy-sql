@@ -29,8 +29,8 @@ FEEDS = {
         'declarative_base': 'quotes.items.models.QuotesBase',
         'item_classes': (
             'quotes.items.models.Author',
-            'quotes.items.models.Quote',
-            'quotes.items.models.Tag'
+            'quotes.items.models.Tag',
+            'quotes.items.models.Quote'
         )
     }
 }

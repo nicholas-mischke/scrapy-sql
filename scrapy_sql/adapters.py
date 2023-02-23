@@ -14,6 +14,7 @@ from itemadapter.adapter import AdapterInterface  # Basically scrapy...
 from sqlalchemy import select, Integer, Numeric
 from sqlalchemy.orm.decl_api import DeclarativeAttributeIntercept
 from sqlalchemy.orm.attributes import set_attribute, get_attribute, del_attribute
+from sqlalchemy.orm.base import object_mapper
 from sqlalchemy.inspection import inspect
 from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy import func
@@ -99,7 +100,7 @@ class SQLAlchemyInstanceAdapter(_MixinColumnSQLAlchemyAdapter, AdapterInterface)
 
     def asdict(self):
         return {
-            attr: getattr(self.item) for attr in
+            attr: getattr(self.item, attr) for attr in
             SQLAlchemyInstanceAdapter.get_field_names_from_class(
                 self.item_class)
         }
@@ -127,8 +128,24 @@ class ScrapyDeclarativeBase:
         return cls.__table__.columns
 
     @classproperty
+    def column_names(cls):
+        return [c.name for c in cls.columns]
+
+    @classproperty
+    def column_dict(cls):
+        return {
+            column.name: column
+            for column in cls.columns
+        }
+
+    @classproperty
     def relationships(cls):
         return inspect(cls).relationships
+
+    @classproperty
+    def subquery_from_dict(cls, instance_kwargs, *return_columns):
+        instance = cls(**instance_kwargs)
+        return instance.subquery(*return_columns)
 
     @property
     def unloaded_columns(self):
@@ -156,6 +173,19 @@ class ScrapyDeclarativeBase:
         }
 
     def subquery(self, *return_columns):
+
+        return_columns = list(return_columns)
+
+        # Allow strings to be passed in as arguments for columns
+        for i, column in enumerate(return_columns):
+            if isinstance(column, str):
+                return_columns[i] = self.__class__.column_dict[column]
+
+        return_columns = tuple(return_columns)
+
+        if return_columns == tuple():  # Default to pks
+            mapper = object_mapper(self)
+            return_columns = tuple(mapper._pks_by_table[self.__table__])
 
         where_args = []
 

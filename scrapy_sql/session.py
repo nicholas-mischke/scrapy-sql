@@ -1,166 +1,203 @@
 
-from collections import UserList
+from .utils import column_value_is_subquery
 
-from scrapy.utils.misc import arg_to_iter
 from scrapy.utils.python import flatten
 
-from sqlalchemy.inspection import inspect
+from sqlalchemy import insert
 from sqlalchemy.orm import Session
-from sqlalchemy.orm.collections import InstrumentedList
+from sqlalchemy.orm.attributes import instance_state
+from sqlalchemy.orm.base import ONETOMANY, MANYTOONE, MANYTOMANY  # ONETOONE not listed
 
+from copy import deepcopy
+from pprint import pprint
 
-# if relationship.direction is MANYTOMANY
-# from sqlalchemy.interfaces import MANYTOMANY
-# from sqlalchemy.interfaces import MANYTOONE
-# from sqlalchemy.interfaces import ONETOMANY
+class ManyToOneBulkDP:
 
+    def __init__(self, instance, relationship):
+        self.instance = instance
+        self.relationship = relationship
+        self.related_instance = getattr(
+            self.instance,
+            self.relationship.class_attribute.key
+        )
 
-class ScrapyNoDuplicateSession(Session):
+    def prepare(self):
+        """
+        Prepare an instance with a ManyToOne relationship for bulk insert.
 
-    def filter_instance(self, instance):
-        # dirty = self._dirty_states or self.dirty (instances)
-        # deleted = set(self._deleted)
-        # new = set(self._new)
+        If the foreign key column is already populated, make no change.
 
-        filter_kwargs = {}
-        for column in instance.__class__.__table__.columns:
-            column_value = getattr(instance, column.name)
+        If the foreign key column is None and the remote column has a value,
+        assign the local column the value of the remote column
 
-            if column.foreign_keys != set():
+        If both the local and remote columns have values of None,
+        generate a subquery to populate the value while inserting.
+        """
+
+        for pair in self.relationship.local_remote_pairs:
+            local_column, remote_column = pair
+
+            local_value = getattr(self.instance, local_column.name)
+            if local_value is not None:
+                continue  # go to next pair
+
+            remote_value = getattr(
+                self.related_instance,
+                remote_column.name
+            )
+            if remote_value is not None:
+                setattr(self.instance, local_column.name, remote_value)
                 continue
 
-            if column_value is None:
-                continue
-
-            filter_kwargs[column.name] = column_value
-
-        return self.query(
-            instance.__class__
-        ).filter_by(
-            **filter_kwargs
-        ).first() or instance
-
-    def add(self, instance, _warn=True):
-
-        # for relationship in inspect(instance.__class__).relationships:
-        #     relationship_name = relationship.class_attribute.key
-        #     related_instances = getattr(instance, relationship_name)
-
-        #     if related_instances is None or len(related_instances) == 0:
-        #         continue
-
-        #     if isinstance(related_instances, InstrumentedList):
-        #         filtered_related_instances = InstrumentedList()
-        #         for related_instance in related_instances:
-        #             filtered_related_instances.append(
-        #                 self.filter_instance(related_instance)
-        #             )
-        #     else:
-        #         filtered_related_instances = self.filter_instance(
-        #             related_instances
-        #         )
-
-        #     setattr(instance, relationship_name, filtered_related_instances)
-
-        # instance = self.filter_instance(instance)  # Insert Ignore
-        super().add(instance, _warn=_warn)
+            setattr(
+                self.instance,
+                local_column.name,
+                self.related_instance.subquery(remote_column)
+            )
 
 
-class UniqueList(UserList):
-    """
-    https://stackoverflow.com/questions/6654613/what-is-an-instrumentedlist-in-python
+class ManyToManyBulkDP:
+    def __init__(self, instance, relationship):
+        self.instance = instance
+        self.relationship = relationship
+        self.related_instances = getattr(
+            self.instance,
+            self.relationship.class_attribute.key
+        )
+        self.secondary = relationship.secondary
 
-    SQLAlchemy uses an InstrumentedList as list-like object
-    which is aware of insertions and deletions of related objects to an object
-    (via one-to-many and many-to-many relationships).
+    def determine_join_table_column_value(
+        self,
+        parent_instance,
+        parent_column,
+        join_table_column
+    ):
+        d = {}
 
-    ScrapyInstrumentedList doesn't allow duplicate tables, or tables that'd
-    cause confilct with primary key / unique keys
-    """
+        parent_value = getattr(parent_instance, parent_column.name)
 
-    def __init__(self, *args, **kwargs):
-
-        # Making a list via list comprehension
-        if (
-            len(args) == 1
-            and hasattr(args[0], '__iter__')
-        ):
-            super().__init__(*tuple(), **kwargs)
-
-            for obj in args[0]:
-                if obj not in self.data:
-                    super().append(obj)
+        if parent_value is not None:
+            d[join_table_column.name] = parent_value
         else:
-            super().__init__(*args, **kwargs)
+            d[join_table_column.name] = parent_instance \
+                .subquery(parent_column)
 
-    def append(self, obj):
-        if obj not in self.data:  # No duplicates
-            super().append(obj)
+        return d
 
-        # try:
-        #     index = self.data.index(obj)
-        #     similar_obj = self.data[index]
+    def prepare_secondary(self):
+        """
+        Determine the subqueries necessary to insert the columns
+        of a join table
+        """
+        params = []
 
-        #     if obj > similar_obj:
-        #         self.data[index] = obj
-        # except ValueError:  # Not in self.data
-        #     super().append(obj)
+        param = {}
+        for pair in self.relationship.synchronize_pairs:
+            parent_column, join_table_column = pair
+            param.update(
+                self.determine_join_table_column_value(
+                    self.instance,
+                    parent_column,
+                    join_table_column
+                )
+            )
 
-    def extend(self, iter):
-        for obj in arg_to_iter(iter):
-            self.append(obj)
+        for related_instance in self.related_instances:
+
+            secondary_param = deepcopy(param)
+
+            for pair in self.relationship.secondary_synchronize_pairs:
+                parent_column, join_table_column = pair
+                secondary_param.update(
+                    self.determine_join_table_column_value(
+                        related_instance,
+                        parent_column,
+                        join_table_column
+                    )
+                )
+
+            params.append(secondary_param)
+
+        return params
 
 
-class ScrapyUnitOfWorkSession(Session):
+class ScrapyBulkSession(Session):
 
-    def __init__(self, declarative_base, *args, **kwargs):
+    def __init__(self, autoflush=False, *args, feed_options=None, **kwargs):
 
-        super().__init__(*args, **kwargs)
+        self.Base = feed_options['declarative_base']
+        self.metadata = self.Base.metadata
+        self.sorted_tables = self.metadata.sorted_tables
 
-        self.instances = {
-            table_cls: UniqueList()
-            for table_cls in declarative_base.metadata.sorted_tables
+        self.mappers = self.Base._sa_registry.mappers
+        self.entities = [mapper.entity for mapper in self.mappers]
+
+        # for DeclarativeBase subclasses the user can set a class stmt
+        # attribute to be used besides the default
+        self.table_statements = {
+            entity.__table__ : entity.stmt
+            for entity in self.entities if hasattr(entity, 'stmt')
+        } # Set user defined
+
+        for table in self.sorted_tables:
+            # For join tables, setattr(table, 'stmt' insert(table))
+            # can be called after the class declaration to set an non-default value
+            if hasattr(table, 'stmt'):
+                self.table_statements.setdefault(table, table.stmt)
+            else:
+                # Bulk inserts use INSERT IGNORE by default
+                self.table_statements.setdefault(
+                    table,
+                    insert(table).prefix_with('OR_IGNORE')
+                )
+
+        super().__init__(autoflush=autoflush, *args, **kwargs)
+
+
+    def bulk_commit(self):
+
+        table_params = {
+            table: []
+            for table in self.sorted_tables
         }
 
-    def add(self, instance):
-        """
-        Only adds DeclarativeMeta obj scraped directly from the spider.
-        Does not "add" DeclarativeMeta obj within relationship attrs.
-        """
-        self.instances[instance.__class__.__table__].append(instance)
+        for instance in self:
+            mapper = instance_state(instance).mapper
 
-    def filter_instance(self, instance):
-        return self.query(
-            instance.__class__
-        ).filter_by(
-            **instance.filter_kwargs
-        ).first() or instance
+            for r in mapper.relationships:
 
-    def commit(self):
+                if r.direction is MANYTOONE:
+                    ManyToOneBulkDP(instance, r).prepare()
 
-        # Flattened list in sorted_tables order
-        instances = [i for values in self.instances.values() for i in values]
-
-        for instance in instances:
-
-            for relationship in instance.relationships:
-                if relationship.single_relation:
-                    setattr(
-                        instance,
-                        relationship.name,
-                        self.filter_instance(relationship.related_instances)
-                    )
-                else:
-                    setattr(
-                        instance,
-                        relationship.name,
-                        UniqueList(
-                            [self.filter_instance(i) for i in relationship]
-                        )
+                elif r.direction is MANYTOMANY:
+                    dependency_processor = ManyToManyBulkDP(instance, r)
+                    table_params[dependency_processor.secondary].extend(
+                        dependency_processor.prepare_secondary()
                     )
 
-            instance = self.filter_instance(instance)  # Insert Ignore
-            super().add(instance, _warn=True)
+            table_params[instance.__table__].append(instance.params)
 
-        super().commit()
+        # UOW INSERTs / UPSERTs occur on self.commit()
+        # We're only interested in BULK INSERTs / UPSERTs here
+        # Possibly start a new transaction and commit it instead
+        # of self.commit()
+        self.expunge_all()
 
+        for table in self.sorted_tables:
+            statement = self.table_statements[table]
+            params = table_params[table]
+
+            if not params:
+                continue
+
+            contains_subqueries = any([
+                column_value_is_subquery(value)
+                for value in flatten([x.values() for x in params])
+            ])
+
+            if contains_subqueries:
+                self.execute(statement.values(params))
+            else:
+                self.execute(statement, params)
+
+            self.commit()
