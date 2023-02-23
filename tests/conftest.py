@@ -216,10 +216,11 @@ def transient_kennedy_quote_II():
 def db_engine(request):
     engine = create_engine(request.param)
 
-    yield engine
-
-    engine.close()
-    engine.dispose()
+    try:
+        yield engine
+    finally:
+        engine.close()
+        engine.dispose()
 
 
 # # # # # @pytest.fixture(scope='session')

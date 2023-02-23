@@ -1,8 +1,9 @@
 
 # Project Imports
-from scrapy_sql.session import ScrapyBulkSession, ScrapyUnitOfWorkSession
+# from scrapy_sql.session import ScrapyBulkSession, ScrapyUnitOfWorkSession
 
 # Scrapy / Twisted Imports
+from scrapy import signals
 from scrapy.extensions.feedexport import IFeedStorage, build_storage
 from scrapy.exceptions import NotConfigured
 from scrapy.utils.misc import load_object
@@ -10,7 +11,7 @@ from scrapy.utils.misc import load_object
 from twisted.internet import threads
 
 # SQLAlchemy Imports
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
 
 # 3rd 🎉 Imports
@@ -20,7 +21,6 @@ from zope.interface import implementer
 
 def _default_commit(session):
     session.commit()
-    session.close()
 
 
 @implementer(IFeedStorage)
@@ -29,11 +29,7 @@ class SQLAlchemyFeedStorage:
     @classmethod
     def from_crawler(cls, crawler, uri, *, feed_options=None):
 
-        try:
-            item_classes = feed_options['item_classes'] # Be sure these are listed
-            Base = load_object(feed_options['declarative_base'])
-        except KeyError:
-            raise NotConfigured
+        declarative_base = feed_options.get('declarative_base')
 
         echo = (
             feed_options.get('engine_echo', False)
@@ -43,17 +39,17 @@ class SQLAlchemyFeedStorage:
         sessionmaker_kwargs = (
             feed_options.get('sessionmaker_kwargs')
             or crawler.settings.get('SQLALCHEMY_SESSIONMAKER_KWARGS')
-            # or {
-            #     'class_': ScrapySession,
-            #     'autoflush': False,  # INSERT not INSERT IGNORE or UPSERTS
-            #     'declarative_base': Base,
-            #     # 'engine' key is sat in __init__
-            # }
-            or {
-                'class_': ScrapyUnitOfWorkSession,
-                'declarative_base': Base,
-            }
         )
+        if 'class_' in sessionmaker_kwargs.keys():
+            sessionmaker_kwargs['class_'] = load_object(
+                sessionmaker_kwargs['class_']
+            )
+        Session = sessionmaker(**sessionmaker_kwargs)
+
+        # Set-up event listeners
+        session_events = feed_options.get('session_events', {})
+        for event_name, func in session_events.items():
+            event.listen(Session, event_name, load_object(func))
 
         commit = (
             feed_options.get('sqlalchemy_commit')
@@ -72,44 +68,52 @@ class SQLAlchemyFeedStorage:
         feed_options.get('item_export_kwargs').setdefault(
             'sqlalchemy_add', add)
 
-        return build_storage(
+        obj = build_storage(
             cls,
             uri,
-            declarative_base=Base,
             echo=echo,
-            sessionmaker_kwargs=sessionmaker_kwargs,
+            declarative_base=load_object(declarative_base),
+            Session=Session,
             commit=load_object(commit),
             feed_options=feed_options,
         )
+
+        # Set signals for cls
+        crawler.signals.connect(obj.close_spider, signals.spider_closed)
+
+        return obj
 
     def __init__(
         self,
         uri,
         *,
-        declarative_base,
         echo,
-        sessionmaker_kwargs,
+        declarative_base,
+        Session,
         commit,
         feed_options=None
     ):
         self.uri = uri
-        self.engine = create_engine(self.uri, echo=True) # Needs to be changed
+        self.engine = create_engine(self.uri, echo=echo or True)
 
-        # Create database if it doesn't already exist
-        self.Base = declarative_base
-        self.metadata = self.Base.metadata
-        self.metadata.create_all(self.engine)
+        # Create database/tables if they don't already exist
+        declarative_base.metadata.create_all(self.engine)
 
-        sessionmaker_kwargs.setdefault('bind', self.engine)
-        self.sessionmaker_kwargs = sessionmaker_kwargs
+        Session.config(self.engine)
+        self.session = self.Session()
 
         self.commit = commit
 
     def open(self, spider):
-        return sessionmaker(**self.sessionmaker_kwargs)()
+        self.session.rollback()
+        return self.session
 
     def store(self, session):
         if urlparse(self.uri).scheme == 'sqlite':  # SQLite is not thread safe
             self.commit(session)
         else:
             return threads.deferToThread(self.commit, session)
+
+    def close_spider(self, spider):
+        self.session.close()
+        self.engine.dispose()

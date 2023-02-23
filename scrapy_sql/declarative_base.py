@@ -121,7 +121,34 @@ class ScrapyDeclarativeBaseExtension:
 
     @property
     def stmt_values(self):
-        pass
+        d = {}
+
+        for column in self.columns:
+
+            column_value = getattr(self, column.name)
+
+            # Don't include autoincrement columns when filtering
+            # to see which tables are already added to a session.
+            # This is because tables in session will have a number already
+            # while newly initalized tables will have `None` for the value.
+            if (
+                column.autoincrement is True
+                or (
+                    isinstance(column.type, Integer)
+                    and column.primary_key is True
+                    and column.foreign_keys == set()
+                )
+            ):
+                continue
+
+            # Determine subqueries given many-to-one relationship
+            elif column.foreign_keys != set():
+                continue
+
+            else:
+                d[column.name] = column_value
+
+        return d
 
     def __repr__(self):
         result = f"{self.__class__.__name__}("
@@ -134,7 +161,7 @@ class ScrapyDeclarativeBaseExtension:
                 result += f"{column.name}={column_value}, "
 
         for r in self.relationships:
-            result += f"{r.name}={r.related_instance}, "
+            result += f"{r.name}={r.related_instances}, "
 
         return result.strip(", ") + ")"
 
@@ -157,21 +184,3 @@ class ScrapyDeclarativeBaseExtension:
                 return False
 
         return True
-
-    @classproperty
-    def mapped_orm_classes(cls):
-        return tuple(cls.registry.mappers)
-
-    @classproperty
-    def sorted_tables(cls):
-        return cls.metadata.sorted_tables
-
-    @classproperty
-    def sorted_orm_classes(cls):
-        d = {
-            x.__table__: x
-            for x in cls.mapped_orm_classes
-        }
-        return tuple(
-            d.get(tbl) for tbl in cls.sorted_tables
-        )
