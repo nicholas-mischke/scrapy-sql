@@ -1,15 +1,19 @@
 
+# Project Imports
 from .utils import column_value_is_subquery
 
+# Scrapy / Twisted Imports
 from scrapy.utils.python import flatten
 
+# SQLAlchemy Imports
 from sqlalchemy import insert
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import instance_state
 from sqlalchemy.orm.base import ONETOMANY, MANYTOONE, MANYTOMANY  # ONETOONE not listed
 
+# 3rd 🎉 Imports
 from copy import deepcopy
-from pprint import pprint
+
 
 class ManyToOneBulkDP:
 
@@ -24,14 +28,6 @@ class ManyToOneBulkDP:
     def prepare(self):
         """
         Prepare an instance with a ManyToOne relationship for bulk insert.
-
-        If the foreign key column is already populated, make no change.
-
-        If the foreign key column is None and the remote column has a value,
-        assign the local column the value of the remote column
-
-        If both the local and remote columns have values of None,
-        generate a subquery to populate the value while inserting.
         """
 
         for pair in self.relationship.local_remote_pairs:
@@ -135,9 +131,9 @@ class ScrapyBulkSession(Session):
         # for DeclarativeBase subclasses the user can set a class stmt
         # attribute to be used besides the default
         self.table_statements = {
-            entity.__table__ : entity.stmt
+            entity.__table__: entity.stmt
             for entity in self.entities if hasattr(entity, 'stmt')
-        } # Set user defined
+        }  # Set user defined
 
         for table in self.sorted_tables:
             # For join tables, setattr(table, 'stmt' insert(table))
@@ -152,7 +148,6 @@ class ScrapyBulkSession(Session):
                 )
 
         super().__init__(autoflush=autoflush, *args, **kwargs)
-
 
     def bulk_commit(self):
 

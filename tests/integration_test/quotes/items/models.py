@@ -68,12 +68,12 @@ if __name__ == '__main__':
 
     einstein = Author(**{
         'name': 'Albert Einstein',
-        'birthday': datetime(month=3, day=14, year=1879),
+        'birthday': datetime(month=3, day=14, year=1879).date(),
         'bio': 'Won the 1921 Nobel Prize in Physics.'
     })
     kennedy = Author(**{
         'name': 'JFK',
-        'birthday': datetime(month=5, day=29, year=1917),
+        'birthday': datetime(month=5, day=29, year=1917).date(),
         'bio': '35th President.'
     })
 
@@ -109,10 +109,17 @@ if __name__ == '__main__':
 
     Base = QuotesBase
 
-    QuotesBase.metadata.drop_all(engine)
-    QuotesBase.metadata.create_all(engine)
+    # QuotesBase.metadata.drop_all(engine)
+    # QuotesBase.metadata.create_all(engine)
 
-    print(None)
+    # print(f"{einstein_quote.unloaded_columns=}")
+    # print(f"{einstein_quote.loaded_columns=}")
+    # print(einstein_quote)
+
+    print(einstein_quote)
+    print()
+    einstein_quote_copy = Quote.from_repr(repr(einstein_quote))
+    print(einstein_quote_copy)
 
 ################################################################################
 ################################################################################

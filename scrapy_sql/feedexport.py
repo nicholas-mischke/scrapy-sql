@@ -11,13 +11,12 @@ from scrapy.utils.misc import load_object
 from twisted.internet import threads
 
 # SQLAlchemy Imports
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 # 3rd 🎉 Imports
 from urllib.parse import urlparse
 from zope.interface import implementer
-from pprint import pprint
 
 
 def _default_commit(session):
@@ -102,7 +101,7 @@ class SQLAlchemyFeedStorage:
         self.commit = feed_options.get('commit')
 
         # Set sessionmaker_kwargs
-        # This needs a try/except block because this class initalized twice by Scrapy
+        # This needs a try/except block because this class gets initalized twice by Scrapy
         if 'bind' in self.sessionmaker_kwargs.keys():
             self.engine = self.sessionmaker_kwargs['bind']
             if isinstance(self.engine, str):
