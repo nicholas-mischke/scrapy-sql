@@ -29,7 +29,6 @@ from collections.abc import KeysView
 from datetime import datetime
 import json
 from typing import Any, Iterator, List, Optional
-from pprint import pprint
 
 
 class _MixinColumnSQLAlchemyAdapter:
@@ -37,6 +36,12 @@ class _MixinColumnSQLAlchemyAdapter:
     @property
     def _fields_dict(self) -> dict:
         return self.asdict()
+
+    def __delitem__(self, field_name: str) -> None:
+        del_attribute(self.item, field_name)
+
+    def __getitem__(self, field_name: str) -> Any:
+        get_attribute(self.item, field_name)
 
     def __setitem__(self, field_name: str, value: Any) -> None:
         try:
@@ -46,12 +51,6 @@ class _MixinColumnSQLAlchemyAdapter:
                 f"{self.item_class_name} does NOT support field: {field_name}\n"
                 f"Supported fields are {', '.join(list(self.field_names))}."
             )
-
-    def __getitem__(self, field_name: str) -> Any:
-        get_attribute(self.item, field_name)
-
-    def __delitem__(self, field_name: str) -> None:
-        del_attribute(self.item, field_name)
 
     def __iter__(self) -> Iterator:
         return iter(self.asdict())

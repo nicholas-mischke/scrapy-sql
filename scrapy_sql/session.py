@@ -1,15 +1,17 @@
 
+# Project Imports
 from .utils import column_value_is_subquery
 
+# Scrapy / Twisted Imports
 from scrapy.utils.python import flatten
 
-from sqlalchemy import insert
+# SQLAlchemy Imports
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import instance_state
 from sqlalchemy.orm.base import ONETOMANY, MANYTOONE, MANYTOMANY  # ONETOONE not listed
 
+# 3rd 🎉 Imports
 from copy import deepcopy
-from pprint import pprint
 
 
 class ManyToOneBulkDP:

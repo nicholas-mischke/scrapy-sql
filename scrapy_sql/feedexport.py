@@ -12,7 +12,6 @@ from scrapy.utils.misc import load_object
 from twisted.internet import threads
 
 # SQLAlchemy Imports
-import sqlalchemy
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
@@ -104,13 +103,13 @@ class SQLAlchemyFeedStorage:
             if isinstance(table, str):
                 table = load_object(table)
 
-            if isinstance(stmt, str):
-                stmt = load_object(stmt)
-
             try:
                 table = table.__table__  # orm entity
             except AttributeError:  # core table obj
                 pass
+
+            if isinstance(stmt, str):
+                stmt = load_object(stmt)
 
             try:
                 stmt = stmt(table)

@@ -26,6 +26,7 @@ FEEDS = {
     f'sqlite:///{FILE_NAMES}.db': {
         'format': 'sql',
         'declarative_base': 'quotes.items.models.QuotesBase',
+        'engine_echo': True,
         'orm_stmts': {
             'quotes.items.models.Author':      'scrapy_sql.utils.insert_ignore',
             'quotes.items.models.Tag':         'scrapy_sql.utils.insert_ignore',

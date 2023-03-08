@@ -1,5 +1,7 @@
-# here to be imported via: from scrapy_sql.utils import classproperty
+
 import sqlalchemy
+
+# here to be imported via: from scrapy_sql.utils import classproperty
 from descriptors import classproperty
 import re
 
