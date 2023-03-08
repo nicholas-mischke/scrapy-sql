@@ -1,6 +1,21 @@
 # here to be imported via: from scrapy_sql.utils import classproperty
 import sqlalchemy
 from descriptors import classproperty
+import re
+
+
+def clean_text(text):
+
+    text = str(text).encode('ascii', 'ignore').decode('utf-8')
+
+    # Turn multiple whitespaces into single whitespace
+    _RE_COMBINE_WHITESPACE = re.compile(r"(?a:\s+)")
+    _RE_STRIP_WHITESPACE = re.compile(r"(?a:^\s+|\s+$)")
+
+    text = _RE_COMBINE_WHITESPACE.sub(" ", text)
+    text = _RE_STRIP_WHITESPACE.sub("", text)
+
+    return text
 
 
 def column_value_is_subquery(column_value):
@@ -18,6 +33,15 @@ def is_scalar_column(column):
             sqlalchemy.sql.sqltypes.Numeric
         )
     )
+
+
+def subquery_to_string(subquery):
+    string_subquery = clean_text(subquery)
+    for key, value in subquery.compile().params.items():
+        if isinstance(value, str):
+            value = f'"{value}"'
+        string_subquery = string_subquery.replace(f':{key}', str(value))
+    return string_subquery
 
 
 def insert(cls):

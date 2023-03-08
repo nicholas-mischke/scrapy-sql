@@ -16,19 +16,9 @@ class InputProcessor:
         return [self.process_value(value) for value in values]
 
 
-class MapCompose(InputProcessor):
-
-    def __init__(self, *args):
-        self.processors = args
-
-    def process_value(self, value):
-        for processor in self.processors:
-            value = processor.process_value(value)
-
-
 class RemoveExcessWhitespace(InputProcessor):
     """
-    "\t\nHello          \nWorld" --> "Hello World"
+    "\t\nHello          \nWorld     " --> "Hello World"
     """
 
     # Turn multiple whitespaces into single whitespace
@@ -87,3 +77,5 @@ class TakeAll:
 
 if __name__ == '__main__':
     print(StringToDate().process_value('1879-03-14'))
+    print(RemoveExcessWhitespace().process_value(
+        '\t\nHello          \nWorld!     '))

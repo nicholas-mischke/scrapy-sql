@@ -1,6 +1,7 @@
 
 from scrapy_sql import ScrapyDeclarativeBase
-from scrapy_sql.utils import classproperty, insert_ignore
+from scrapy_sql.utils import classproperty, insert_ignore, subquery_to_string
+from scrapy_sql.subquery_item import SubqueryItem, Field
 
 from sqlalchemy import insert
 from sqlalchemy import Column, Date, ForeignKey, Integer, String, Table, Text
@@ -60,17 +61,39 @@ t_quote_tag = Table(
 setattr(t_quote_tag, 'stmt', insert(t_quote_tag).prefix_with('OR IGNORE'))
 
 
+class AuthorSubquery(SubqueryItem):
+
+    orm_entity = Author
+    return_columns = ('id', )
+
+    name = Field()
+
+
 if __name__ == '__main__':
 
     from datetime import datetime
-    from sqlalchemy import create_engine
-    from sqlalchemy.orm import sessionmaker
+    from sqlalchemy import create_engine, select, text
+    from sqlalchemy.orm import sessionmaker, aliased
+    from pprint import pprint
+
+
+    # Connections params
+    uri = 'sqlite:///tests/integration_test/quotes_debug.db'
+    engine = create_engine(uri, echo=True)
+
+    Session = sessionmaker(**{'bind': engine, 'autoflush': False})
+    session = Session()
+
+    Base = QuotesBase
+
+    QuotesBase.metadata.drop_all(engine)
+    QuotesBase.metadata.create_all(engine)
 
     einstein = Author(**{
-        'name': 'Albert Einstein',
-        'birthday': datetime(month=3, day=14, year=1879).date(),
-        'bio': 'Won the 1921 Nobel Prize in Physics.'
-    })
+           'name': 'Albert Einstein',
+           'birthday': datetime(month=3, day=14, year=1879).date(),
+           'bio': 'Won the 1921 Nobel Prize in Physics.'
+       })
     kennedy = Author(**{
         'name': 'JFK',
         'birthday': datetime(month=5, day=29, year=1917).date(),
@@ -89,6 +112,14 @@ if __name__ == '__main__':
         'author': einstein,
         'tags': [change, deep_thoughts]
     })
+    einstein_quote_II = Quote(**{
+        'author_id': einstein.subquery('id'),
+        'quote': (
+            'The world as we have created it is a process of our thinking. '
+            'It cannot be changed without changing our thinking.'
+        ),
+        'tags': [change, deep_thoughts]
+    })
     kennedy_quote = Quote(**{
         'quote': (
             'Ask not what your country can do for you, '
@@ -98,28 +129,22 @@ if __name__ == '__main__':
         'tags': [community]
     })
 
-################################################################################
+    einstein_from_repr = Author.from_repr(str(einstein))
+    print(einstein_from_repr == einstein)
+    print(einstein_from_repr.params == einstein.params)
 
-    # Connections params
-    uri = 'sqlite:///tests/integration_test/quotes_debug.db'
-    engine = create_engine(uri, echo=True)
+    session.execute(insert(Author), [einstein_from_repr.params])
+    session.commit()
 
-    Session = sessionmaker(**{'bind': engine, 'autoflush': False})
-    session = Session()
+    einstein_quote_II_from_repr = Quote.from_repr(str(einstein_quote_II))
+    print(einstein_quote_II_from_repr)
+    print(einstein_quote_II_from_repr == einstein_quote_II)
+    print(einstein_quote_II_from_repr.params == einstein_quote_II.params)
 
-    Base = QuotesBase
+    session.execute(insert(Quote).values([einstein_quote_II_from_repr.params]))
+    session.commit()
 
-    # QuotesBase.metadata.drop_all(engine)
-    # QuotesBase.metadata.create_all(engine)
 
-    # print(f"{einstein_quote.unloaded_columns=}")
-    # print(f"{einstein_quote.loaded_columns=}")
-    # print(einstein_quote)
-
-    print(einstein_quote)
-    print()
-    einstein_quote_copy = Quote.from_repr(repr(einstein_quote))
-    print(einstein_quote_copy)
 
 ################################################################################
 ################################################################################

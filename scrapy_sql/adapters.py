@@ -1,12 +1,12 @@
 
 # Project Imports
-from .utils import classproperty, column_value_is_subquery, is_scalar_column
+from .utils import classproperty, column_value_is_subquery, is_scalar_column, subquery_to_string
 
 # Scrapy / Twisted Imports
 from itemadapter.adapter import AdapterInterface  # Basically scrapy...
 
 # SQLAlchemy Imports
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.inspection import inspect
 from sqlalchemy.orm.attributes import (del_attribute, get_attribute,
                                        set_attribute)
@@ -21,6 +21,7 @@ from collections.abc import KeysView
 from datetime import datetime
 import json
 from typing import Any, Iterator, List, Optional
+from pprint import pprint
 
 
 class _MixinColumnSQLAlchemyAdapter:
@@ -142,7 +143,7 @@ class ScrapyDeclarativeBase:
     @property
     def params(self):
         """
-        returns a dictionary to be used with session.execute(statment, params)
+        returns a dictionary to be used with session.execute(stmt, params)
         """
         return {
             column.name: getattr(self, column.name)
@@ -174,11 +175,13 @@ class ScrapyDeclarativeBase:
         for column in self.loaded_columns:
             value = getattr(self, column.name)
 
-            # TODO fix this to work with SQLite
+            # TODO SQLite doesn't work with DATE types, fix this so they will
             if isinstance(column.type, (Date, DateTime, Time)):
                 continue
                 # sqlalchemy.func.DATE(column)
 
+            # Subqueries don't work for whatever reason.
+            # This could probably be worked around if need be
             if column_value_is_subquery(value):
                 continue
 
@@ -196,7 +199,7 @@ class ScrapyDeclarativeBase:
             and is_scalar_column(return_columns[0])
         ):
             return subquery.scalar_subquery()
-        return subquery
+        return subquery.subquery()
 
     @classproperty
     def relationships(cls):
@@ -213,16 +216,29 @@ class ScrapyDeclarativeBase:
             for relationship in cls.relationships
         }
 
+    @classproperty
+    def tablename_to_entity_map(cls):
+        tables = [table.name for table in cls.metadata.tables]
+        entites = [mapper.entity for mapper in cls._sa_registry.mappers]
+
+        d = {entity.table.name: entity for entity in entites}
+        for table in tables:
+            d.setdefault(table, table)
+        return d
+
     def __repr__(self):
 
         result = f"{self.__class__.__name__}("
 
         for name in self.column_names:
             value = getattr(self, name)
-            if isinstance(value, str):
-                result += f'{name}="{value}", '
-            else:  # No quotation marks if not a string
-                result += f"{name}={value}, "
+
+            if column_value_is_subquery(value):
+                value = subquery_to_string(value)
+            elif isinstance(value, str):  # quotation marks if string
+                value = f'"{value}"'
+
+            result += f"{name}={value}, "
 
         for relationship in self.relationships:
             relationship_name = relationship.class_attribute.key
@@ -234,10 +250,10 @@ class ScrapyDeclarativeBase:
             elif isinstance(related_instances, InstrumentedList):
                 result += f'{relationship_name}=['
                 for instance in related_instances:
-                    result += f"{repr(instance)}, "
+                    result += f"{relationship_cls.__repr__(instance)}, "
                 result = result.strip(', ') + ']'
             else:
-                result += f"{relationship_name}={repr(related_instances)}, "
+                result += f"{relationship_name}={relationship_cls.__repr__(related_instances)}, "
 
         return result.strip(", ") + ")"
 
@@ -252,104 +268,145 @@ class ScrapyDeclarativeBase:
         datetime_format='%Y-%m-%d %H:%M:%S'
     ):
         if not string.startswith(cls.__name__):
-            raise TypeError
+            raise TypeError()
 
+        kwargs = cls._from_repr_kwargs(string)
+
+        for column in cls.columns:
+            attr = column.name
+            kwargs[attr] = cls._from_repr_columns(
+                column,
+                kwargs[attr],
+                date_format,
+                time_format,
+                datetime_format
+            )
+
+        for relationship in cls.relationships:
+            attr = relationship.class_attribute.key
+            kwargs[attr] = cls._from_repr_relationships(
+                relationship,
+                kwargs[attr]
+            )
+
+        return cls(**kwargs)
+
+    @classmethod
+    def _from_repr_kwargs(cls, string):
         instance = cls()
-        init_kwargs = {}
+        attrs = cls.column_names + cls.relationship_names
 
         string = string.lstrip(f'{cls.__name__}(')
         string = string.rstrip(')')
 
-        kwargs_location = {
-            name: None
-            for name in cls.column_names + cls.relationship_names
-        }
+        kwargs = {attr: None for attr in attrs}
 
-        for name in cls.column_names:
-            kwargs_location[name] = string.index(f'{name}=')
+        for attr in cls.column_names:
+            kwargs[attr] = string.index(f'{attr}=')
 
         for relationship in cls.relationships:
-            name = relationship.class_attribute.key
-            relationship_cls = relationship.entity.class_manager.class_
+            attr = relationship.class_attribute.key
+            r_cls_name = relationship.entity.class_manager.class_.__name__
 
-            related_instances = getattr(instance, name)
+            related_instances = getattr(instance, attr)
             if isinstance(related_instances, InstrumentedList):
                 try:
-                    substring = f'{name}=[{relationship_cls.__name__}('
-                    kwargs_location[name] = string.index(substring)
+                    index = string.index(f'{attr}=[{r_cls_name}(')
                 except ValueError:
-                    substring = f'{name}=[]'
-                    kwargs_location[name] = string.index(substring)
+                    index = string.index(f'{attr}=[]')
             else:
-                substring = f'{name}={relationship_cls.__name__}('
-                kwargs_location[name] = string.index(substring)
+                try:
+                    index = string.index(f'{attr}={r_cls_name}(')
+                except ValueError:
+                    index = string.index(f'{attr}=None')
+            kwargs[attr] = index
 
-        indicies = sorted(kwargs_location.values()) + [len(string)]
-        kwargs_location = {
-            name: (value, min([i for i in indicies if i > value]))
-            for name, value in kwargs_location.items()
-        }
+        indicies = sorted(kwargs.values()) + [len(string)]
+        for attr, start in kwargs.items():
+            stop = min([i for i in indicies if i > start])
 
-        for name in cls.column_names:
-            start, stop = kwargs_location[name]
-            attr_string = string[start:stop]
-            attr_value = attr_string.lstrip(f"{name}=").rstrip(", ").strip('"')
+            value = string[start:stop]
+            value = value.lstrip(f'{attr}=').rstrip(", ").strip('"')
 
-            column_type = cls.column_name_to_column_obj_map[name].type
+            kwargs[attr] = value
 
-            if attr_value == 'None':
-                attr_value = None
-            elif isinstance(column_type, Boolean):
-                attr_value = True if attr_value == 'True' else False
-            elif isinstance(column_type, String):
-                pass  # already a string
-            elif isinstance(column_type, Integer):
-                attr_value = int(attr_value)
-            elif isinstance(column_type, Numeric):
-                attr_value = float(attr_value)
-            elif isinstance(column_type, Date):
-                attr_value = datetime.strptime(attr_value, date_format).date()
-            elif isinstance(column_type, Time):
-                attr_value = datetime.strptime(attr_value, time_format).time()
-            elif isinstance(column_type, DateTime):
-                attr_value = datetime.strptime(attr_value, datetime_format)
-            elif isinstance(column_type, JSON):
-                attr_value = json.loads(attr_value)
+        return kwargs
 
-            init_kwargs[name] = attr_value
+    @classmethod
+    def _from_repr_columns(
+        cls,
+        column,
+        string,
+        date_format='%Y-%m-%d',
+        time_format='%H:%M:%S',
+        datetime_format='%Y-%m-%d %H:%M:%S'
+    ):
 
-        for relationship in cls.relationships:
-            name = relationship.class_attribute.key
-            relationship_cls = relationship.entity.class_manager.class_
+        # First try to convert a subquery
+        try:
+            return cls._from_repr_subquery(column, string)
+        except BaseException:
+            pass
 
-            start, stop = kwargs_location[name]
-            attr_string = string[start:stop]
-            attr_value = attr_string.lstrip(f"{name}=").rstrip(", ").strip('"')
+        if string == 'None':
+            return None
+        elif isinstance(column.type, Boolean):
+            return True if string == 'True' else False
 
-            related_instances = getattr(instance, name)
-            if isinstance(related_instances, InstrumentedList):
-                if attr_value == '[]':
-                    attr_value = InstrumentedList()
-                else:
-                    attr_values = attr_value.lstrip('[').rstrip(']').split(
-                        f", {relationship_cls.__name__}("
-                    )
+        elif isinstance(column.type, String):
+            return string
 
-                    for i, value in enumerate(attr_values):
-                        if not value.startswith(f"{relationship_cls.__name__}("):
-                            attr_values[i] = f"{relationship_cls.__name__}({value}"
+        elif isinstance(column.type, Integer):
+            return int(string)
+        elif isinstance(column.type, Numeric):
+            return float(string)
 
-                    attr_value = InstrumentedList()
-                    for value in attr_values:
-                        attr_value.append(
-                            relationship_cls.from_repr(value)
-                        )
-            else:
-                if attr_value == 'None':
-                    attr_value = None
-                else:
-                    attr_value = relationship_cls.from_repr(attr_value)
+        elif isinstance(column.type, Date):
+            return datetime.strptime(string, date_format).date()
+        elif isinstance(column.type, Time):
+            return datetime.strptime(string, time_format).time()
+        elif isinstance(column.type, DateTime):
+            return datetime.strptime(string, datetime_format)
 
-            init_kwargs[name] = attr_value
+        elif isinstance(column.type, JSON):
+            return json.loads(string)
 
-        return cls(**init_kwargs)
+        raise BaseException()
+
+    @classmethod
+    def _from_repr_subquery(cls, column, string):
+        """Run SELECT * FROM table back into orm subqueries"""
+
+        if string.startswith('(SELECT'):
+            return text(string)
+        raise BaseException()
+
+    @classmethod
+    def _from_repr_relationships(cls, relationship, string):
+        attr = relationship.class_attribute.key
+        r_cls = relationship.entity.class_manager.class_
+
+        instance = cls()
+        related_instances = getattr(instance, attr)
+
+        if not isinstance(related_instances, InstrumentedList):
+            if string == 'None':
+                return None
+            return r_cls.from_repr(string)
+
+        if string == '[]':
+            return InstrumentedList()
+
+        strings = string \
+            .lstrip('[').rstrip(']') \
+            .split(f", {r_cls.__name__}(")
+
+        for i, string in enumerate(strings):
+            if i == 0:
+                continue
+            strings[i] = f"{r_cls.__name__}({string}"
+
+        return InstrumentedList([
+            r_cls.from_repr(string)
+            for string in strings
+        ])

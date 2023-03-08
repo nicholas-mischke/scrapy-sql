@@ -1,9 +1,9 @@
 
-from quotes.items.models import Author, Tag, Quote
+from quotes.items.models import Author, Tag, Quote, AuthorSubquery
 from quotes.items.processors import *
 
 from itemloaders import ItemLoader
-from itemloaders.processors import TakeFirst
+from itemloaders.processors import TakeFirst, MapCompose
 
 
 class AuthorLoader(ItemLoader):
@@ -11,7 +11,10 @@ class AuthorLoader(ItemLoader):
     default_input_processor = RemoveExcessWhitespace()
     default_output_processor = TakeFirst()
 
-    # name_in = MapCompose(default_input_processor, TitleCase())
+    name_in = MapCompose(
+        default_input_processor.process_value,
+        str.title
+    )
     birthday_in = StringToDate()
 
 
@@ -26,5 +29,12 @@ class QuoteLoader(ItemLoader):
     default_input_processor = RemoveExcessWhitespace()
     default_output_processor = TakeFirst()
 
-    # Passed a partially loaded Author instance
-    # author_id_in = SubQueryPrimaryKey()
+
+class AuthorSubqueryLoader(ItemLoader):
+    default_item_class = AuthorSubquery
+    default_output_processor = TakeFirst()
+
+    name_in = MapCompose(
+        RemoveExcessWhitespace().process_value,
+        str.title
+    )
