@@ -2,10 +2,6 @@
 import re
 from datetime import datetime
 
-# from .models import Author
-# from sqlalchemy import select
-# from sqlalchemy.orm.base import object_mapper
-
 
 class InputProcessor:
 
@@ -36,30 +32,6 @@ class RemoveExcessWhitespace(InputProcessor):
         return value
 
 
-class LowerCase(InputProcessor):
-
-    def process_value(self, value):
-        if not isinstance(value, str):
-            raise TypeError()
-        return value.lower()
-
-
-class UpperCase(InputProcessor):
-
-    def process_value(self, value):
-        if not isinstance(value, str):
-            raise TypeError()
-        return value.upper()
-
-
-class TitleCase(InputProcessor):
-
-    def process_value(self, value):
-        if not isinstance(value, str):
-            raise TypeError()
-        return value.title()
-
-
 class StringToDate(InputProcessor):
 
     def __init__(self, format='%Y-%m-%d'):
@@ -73,9 +45,3 @@ class TakeAll:
 
     def __call__(self, values):
         return values if len(values) > 0 else None
-
-
-if __name__ == '__main__':
-    print(StringToDate().process_value('1879-03-14'))
-    print(RemoveExcessWhitespace().process_value(
-        '\t\nHello          \nWorld!     '))

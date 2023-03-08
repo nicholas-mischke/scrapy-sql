@@ -112,6 +112,25 @@ class SQLAlchemyInstanceAdapter(_MixinColumnSQLAlchemyAdapter, AdapterInterface)
 class ScrapyDeclarativeBase:
 
     @classproperty
+    def sorted_tables(cls):
+        return cls.metadata.sorted_tables
+
+    @classproperty
+    def sorted_entities(cls):
+        mappers = cls._sa_registry.mappers
+
+        entities = [mapper.entity for mapper in mappers]
+        table_entity_map = {entity.__table__: entity for entity in entities}
+
+        result = []
+        for table in cls.sorted_tables:
+            try:
+                result.append(table_entity_map[table])
+            except KeyError:  # table without entity, most likely a join table
+                pass
+        return result
+
+    @classproperty
     def columns(cls):
         return cls.__table__.columns
 

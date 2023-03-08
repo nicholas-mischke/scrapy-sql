@@ -1,6 +1,5 @@
 
 from pathlib import Path
-from sqlalchemy.orm import Session
 
 FILE_NAMES = 'quotes'
 
@@ -27,6 +26,12 @@ FEEDS = {
     f'sqlite:///{FILE_NAMES}.db': {
         'format': 'sql',
         'declarative_base': 'quotes.items.models.QuotesBase',
+        'orm_stmts': {
+            'quotes.items.models.Author':      'scrapy_sql.utils.insert_ignore',
+            'quotes.items.models.Tag':         'scrapy_sql.utils.insert_ignore',
+            'quotes.items.models.Quote':       'scrapy_sql.utils.insert_ignore',
+            'quotes.items.models.t_quote_tag': 'scrapy_sql.utils.insert_ignore'
+        },
         'item_classes': (
             'quotes.items.models.Author',
             'quotes.items.models.Tag',

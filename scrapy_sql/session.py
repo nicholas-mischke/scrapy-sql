@@ -1,18 +1,15 @@
 
-# Project Imports
 from .utils import column_value_is_subquery
 
-# Scrapy / Twisted Imports
 from scrapy.utils.python import flatten
 
-# SQLAlchemy Imports
 from sqlalchemy import insert
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import instance_state
 from sqlalchemy.orm.base import ONETOMANY, MANYTOONE, MANYTOMANY  # ONETOONE not listed
 
-# 3rd 🎉 Imports
 from copy import deepcopy
+from pprint import pprint
 
 
 class ManyToOneBulkDP:
@@ -28,6 +25,14 @@ class ManyToOneBulkDP:
     def prepare(self):
         """
         Prepare an instance with a ManyToOne relationship for bulk insert.
+
+        If the foreign key column is already populated, make no change.
+
+        If the foreign key column is None and the remote column has a value,
+        assign the local column the value of the remote column
+
+        If both the local and remote columns have values of None,
+        generate a subquery to populate the value while inserting.
         """
 
         for pair in self.relationship.local_remote_pairs:
@@ -121,31 +126,8 @@ class ScrapyBulkSession(Session):
 
     def __init__(self, autoflush=False, *args, feed_options=None, **kwargs):
 
-        self.Base = feed_options['declarative_base']
-        self.metadata = self.Base.metadata
-        self.sorted_tables = self.metadata.sorted_tables
-
-        self.mappers = self.Base._sa_registry.mappers
-        self.entities = [mapper.entity for mapper in self.mappers]
-
-        # for DeclarativeBase subclasses the user can set a class stmt
-        # attribute to be used besides the default
-        self.table_statements = {
-            entity.__table__: entity.stmt
-            for entity in self.entities if hasattr(entity, 'stmt')
-        }  # Set user defined
-
-        for table in self.sorted_tables:
-            # For join tables, setattr(table, 'stmt' insert(table))
-            # can be called after the class declaration to set an non-default value
-            if hasattr(table, 'stmt'):
-                self.table_statements.setdefault(table, table.stmt)
-            else:
-                # Bulk inserts use INSERT IGNORE by default
-                self.table_statements.setdefault(
-                    table,
-                    insert(table).prefix_with('OR_IGNORE')
-                )
+        self.orm_stmts = feed_options['orm_stmts']
+        self.sorted_tables = feed_options['declarative_base'].sorted_tables
 
         super().__init__(autoflush=autoflush, *args, **kwargs)
 
@@ -179,7 +161,7 @@ class ScrapyBulkSession(Session):
         self.expunge_all()
 
         for table in self.sorted_tables:
-            statement = self.table_statements[table]
+            statement = self.orm_stmts[table]
             params = table_params[table]
 
             if not params:

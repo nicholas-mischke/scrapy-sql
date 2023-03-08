@@ -1,6 +1,6 @@
 
 from scrapy_sql import ScrapyDeclarativeBase
-from scrapy_sql.utils import classproperty, insert_ignore, subquery_to_string
+from scrapy_sql.utils import classproperty, insert_ignore
 from scrapy_sql.subquery_item import SubqueryItem, Field
 
 from sqlalchemy import insert

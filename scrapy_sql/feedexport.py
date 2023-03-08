@@ -1,6 +1,7 @@
 
 # Project Imports
 from scrapy_sql.session import ScrapyBulkSession
+import scrapy_sql.utils as utils
 
 # Scrapy / Twisted Imports
 from scrapy import signals
@@ -11,6 +12,7 @@ from scrapy.utils.misc import load_object
 from twisted.internet import threads
 
 # SQLAlchemy Imports
+import sqlalchemy
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
@@ -35,15 +37,15 @@ class SQLAlchemyFeedStorage:
         # Settings priorities
         # 1) feed_options['item_export_kwargs'] (when applicable)
         # 2) feed_options
-        # 3) crawler_settings
+        # 3) crawler.settings
 
         feed_options.setdefault('item_export_kwargs', {})
 
-        declarative_base = load_object(
+        Base = load_object(
             feed_options.get('declarative_base')
             or crawler.settings.get('SQLALCHEMY_DECLARATIVE_BASE')
         )
-        if not declarative_base:
+        if not Base:
             raise NotConfigured()
 
         echo = (
@@ -69,13 +71,63 @@ class SQLAlchemyFeedStorage:
             or _default_commit
         )
 
+
+        # ORM INSERTs / UPSERTs are sat with the following priorities
+        # 1) feed_options
+        # 2) as a classproperty of the entity or table
+        # 3) crawler.settings
+        # 4) sqlalchemy.insert(table)
+
+        default_orm_stmt = load_object(
+            crawler.settings.get('SQLALCHEMY_DEFAULT_STMT')
+            or utils.insert
+        )
+
+        orm_stmts = {}
+
+        for table in Base.sorted_tables:
+            try:
+                # for DeclarativeBase subclasses a stmt classproperty
+                # can be added to the class declaration
+
+                # for core table objs (or DeclarativeBase subclasses)
+                # setattr(table, 'stmt', orm_stmt)
+                # can be placed after the class declaration
+                stmt = table.stmt
+            except AttributeError:
+                stmt = default_orm_stmt(table)
+            orm_stmts[table] = stmt
+
+        # feed_options take priority
+        for table, stmt in feed_options.get('orm_stmts', {}).items():
+
+            if isinstance(table, str):
+                table = load_object(table)
+
+            if isinstance(stmt, str):
+                stmt = load_object(stmt)
+
+            try:
+                table = table.__table__  # orm entity
+            except AttributeError:  # core table obj
+                pass
+
+            try:
+                stmt = stmt(table)
+            except TypeError:  # 'Insert' object is not callable
+                stmt = stmt
+
+            orm_stmts[table] = stmt # insert(table)
+
+
         # Adjust feed_options for loaded items
-        feed_options['declarative_base'] = declarative_base
+        feed_options['declarative_base'] = Base
         feed_options['echo'] = echo
         feed_options['sessionmaker_kwargs'] = sessionmaker_kwargs
         feed_options['add'] = add
         feed_options['item_export_kwargs']['add'] = add
         feed_options['commit'] = commit
+        feed_options['orm_stmts'] = orm_stmts
 
         obj = build_storage(
             cls,
