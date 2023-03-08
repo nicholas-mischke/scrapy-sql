@@ -1,6 +1,9 @@
 
 # Project Imports
-from .utils import classproperty, column_value_is_subquery, is_scalar_column, subquery_to_string
+from .utils import (
+    classproperty, is_scalar_column,
+    column_value_is_subquery, subquery_to_string
+)
 
 # Scrapy / Twisted Imports
 from itemadapter.adapter import AdapterInterface  # Basically scrapy...
@@ -8,13 +11,18 @@ from itemadapter.adapter import AdapterInterface  # Basically scrapy...
 # SQLAlchemy Imports
 from sqlalchemy import func, select, text
 from sqlalchemy.inspection import inspect
-from sqlalchemy.orm.attributes import (del_attribute, get_attribute,
-                                       set_attribute)
+from sqlalchemy.orm.attributes import (
+    del_attribute,
+    get_attribute,
+    set_attribute
+)
 from sqlalchemy.orm.base import object_mapper
 from sqlalchemy.orm.collections import InstrumentedList
 from sqlalchemy.orm.decl_api import DeclarativeAttributeIntercept
-from sqlalchemy.sql.sqltypes import (JSON, Boolean, Date, DateTime, Integer,
-                                     Numeric, String, Time)
+from sqlalchemy.sql.sqltypes import (
+    JSON, Boolean, Date, DateTime, Integer,
+    Numeric, String, Time
+)
 
 # 3rd 🎉 Imports
 from collections.abc import KeysView
@@ -416,6 +424,7 @@ class ScrapyDeclarativeBase:
         if string == '[]':
             return InstrumentedList()
 
+        # TODO this split would be better with regex
         strings = string \
             .lstrip('[').rstrip(']') \
             .split(f", {r_cls.__name__}(")
