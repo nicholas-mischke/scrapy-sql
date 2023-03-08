@@ -20,6 +20,16 @@ from urllib.parse import urlparse
 from zope.interface import implementer
 
 
+class SQLAlchemyInstanceFilter:
+    def __init__(self, feed_options):
+        self.feed_options = feed_options
+        self.Base = load_object(self.feed_options['declarative_base'])
+        self.instance_classes = tuple(self.Base.sorted_entities)
+
+    def accepts(self, instance):
+        return isinstance(instance, self.instance_classes)
+
+
 def _default_commit(session):
     if isinstance(session, ScrapyBulkSession):
         session.bulk_commit()
@@ -70,7 +80,6 @@ class SQLAlchemyFeedStorage:
             or _default_commit
         )
 
-
         # ORM INSERTs / UPSERTs are sat with the following priorities
         # 1) feed_options
         # 2) as a classproperty of the entity or table
@@ -116,8 +125,7 @@ class SQLAlchemyFeedStorage:
             except TypeError:  # 'Insert' object is not callable
                 stmt = stmt
 
-            orm_stmts[table] = stmt # insert(table)
-
+            orm_stmts[table] = stmt  # insert(table)
 
         # Adjust feed_options for loaded items
         feed_options['declarative_base'] = Base
@@ -160,7 +168,7 @@ class SQLAlchemyFeedStorage:
         else:
             self.engine = create_engine(
                 self.uri,
-                echo=self.echo or True
+                echo=self.echo
             )
             self.sessionmaker_kwargs['bind'] = self.engine
 

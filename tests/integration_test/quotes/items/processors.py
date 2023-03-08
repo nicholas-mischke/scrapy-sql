@@ -41,7 +41,27 @@ class StringToDate(InputProcessor):
         return datetime.strptime(value, self.format).date()
 
 
+class StringToTime(InputProcessor):
+
+    def __init__(self, format='%H:%M:%S'):
+        self.format = format
+
+    def process_value(self, value):
+        return datetime.strptime(value, self.format).time()
+
+
+class StringToDateTime(InputProcessor):
+
+    def __init__(self, format='%Y-%m-%d %H:%M:%S'):
+        self.format = format
+
+    def process_value(self, value):
+        return datetime.strptime(value, self.format)
+
+
 class TakeAll:
 
     def __call__(self, values):
+        if not isinstance(values, list):
+            raise TypeError()
         return values if len(values) > 0 else None

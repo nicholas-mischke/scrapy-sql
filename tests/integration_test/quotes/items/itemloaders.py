@@ -20,7 +20,10 @@ class AuthorLoader(ItemLoader):
 
 class TagLoader(ItemLoader):
     default_item_class = Tag
-    default_input_processor = RemoveExcessWhitespace()
+    default_input_processor = MapCompose(
+        RemoveExcessWhitespace().process_value,
+        str.lower
+    )
     default_output_processor = TakeFirst()
 
 
@@ -32,9 +35,8 @@ class QuoteLoader(ItemLoader):
 
 class AuthorSubqueryLoader(ItemLoader):
     default_item_class = AuthorSubquery
-    default_output_processor = TakeFirst()
-
-    name_in = MapCompose(
+    default_input_processor = MapCompose(
         RemoveExcessWhitespace().process_value,
         str.title
     )
+    default_output_processor = TakeFirst()

@@ -1,6 +1,5 @@
 
 from scrapy_sql import ScrapyDeclarativeBase
-from scrapy_sql.utils import classproperty, insert_ignore
 from scrapy_sql.subquery_item import SubqueryItem, Field
 
 from sqlalchemy import insert
@@ -21,20 +20,12 @@ class Author(QuotesBase):
     birthday = Column(Date, nullable=False)
     bio = Column(Text, nullable=False)
 
-    @classproperty
-    def stmt(cls):
-        return insert_ignore(cls)
-
 
 class Tag(QuotesBase):
     __tablename__ = 'tag'
 
     id = Column(Integer, primary_key=True)
     name = Column(String(31), unique=True, nullable=False)
-
-    @classproperty
-    def stmt(cls):
-        return insert_ignore(cls)
 
 
 class Quote(QuotesBase):
@@ -48,20 +39,16 @@ class Quote(QuotesBase):
     author = relationship('Author')
     tags = relationship('Tag', secondary='quote_tag')
 
-    @classproperty
-    def stmt(cls):
-        return insert_ignore(cls)
-
 
 t_quote_tag = Table(
     'quote_tag', QuotesBase.metadata,
     Column('quote_id', ForeignKey('quote.id'), primary_key=True),
     Column('tag_id',   ForeignKey('tag.id'),   primary_key=True)
 )
-setattr(t_quote_tag, 'stmt', insert(t_quote_tag).prefix_with('OR IGNORE'))
 
 
 class AuthorSubquery(SubqueryItem):
+    """Used alongisde Quote to subquery author_id Column"""
 
     orm_entity = Author
     return_columns = ('id', )
@@ -72,78 +59,91 @@ class AuthorSubquery(SubqueryItem):
 if __name__ == '__main__':
 
     from datetime import datetime
-    from sqlalchemy import create_engine, select, text
-    from sqlalchemy.orm import sessionmaker, aliased
-    from pprint import pprint
-
-
-    # Connections params
-    uri = 'sqlite:///tests/integration_test/quotes_debug.db'
-    engine = create_engine(uri, echo=True)
-
-    Session = sessionmaker(**{'bind': engine, 'autoflush': False})
-    session = Session()
-
-    Base = QuotesBase
-
-    QuotesBase.metadata.drop_all(engine)
-    QuotesBase.metadata.create_all(engine)
 
     einstein = Author(**{
-           'name': 'Albert Einstein',
-           'birthday': datetime(month=3, day=14, year=1879).date(),
-           'bio': 'Won the 1921 Nobel Prize in Physics.'
-       })
-    kennedy = Author(**{
-        'name': 'JFK',
-        'birthday': datetime(month=5, day=29, year=1917).date(),
-        'bio': '35th President.'
+        'name': 'Albert Einstein',
+        'birthday': datetime(month=3, day=14, year=1879).date(),
+        'bio': 'Won the 1921 Nobel Prize in Physics.'
     })
 
-    change = Tag(**{'name': 'inspirational'})
-    deep_thoughts = Tag(**{'name': 'deep thoughts'})
-    community = Tag(**{'name': 'community'})
+    instance_classes = tuple(QuotesBase.sorted_entities)
 
-    einstein_quote = Quote(**{
-        'quote': (
-            'The world as we have created it is a process of our thinking. '
-            'It cannot be changed without changing our thinking.'
-        ),
-        'author': einstein,
-        'tags': [change, deep_thoughts]
-    })
-    einstein_quote_II = Quote(**{
-        'author_id': einstein.subquery('id'),
-        'quote': (
-            'The world as we have created it is a process of our thinking. '
-            'It cannot be changed without changing our thinking.'
-        ),
-        'tags': [change, deep_thoughts]
-    })
-    kennedy_quote = Quote(**{
-        'quote': (
-            'Ask not what your country can do for you, '
-            'but what you can do for your country.'
-        ),
-        'author': kennedy,
-        'tags': [community]
-    })
+    for x in instance_classes:
+        print(x, '\n')
 
-    einstein_from_repr = Author.from_repr(str(einstein))
-    print(einstein_from_repr == einstein)
-    print(einstein_from_repr.params == einstein.params)
+    print(isinstance(einstein, (Author, Tag, Quote)))
 
-    session.execute(insert(Author), [einstein_from_repr.params])
-    session.commit()
 
-    einstein_quote_II_from_repr = Quote.from_repr(str(einstein_quote_II))
-    print(einstein_quote_II_from_repr)
-    print(einstein_quote_II_from_repr == einstein_quote_II)
-    print(einstein_quote_II_from_repr.params == einstein_quote_II.params)
+    # from sqlalchemy import create_engine, select, text
+    # from sqlalchemy.orm import sessionmaker, aliased
+    # from pprint import pprint
 
-    session.execute(insert(Quote).values([einstein_quote_II_from_repr.params]))
-    session.commit()
+    # # Connections params
+    # uri = 'sqlite:///tests/integration_test/quotes_debug.db'
+    # engine = create_engine(uri, echo=True)
 
+    # Session = sessionmaker(**{'bind': engine, 'autoflush': False})
+    # session = Session()
+
+    # Base = QuotesBase
+
+    # QuotesBase.metadata.drop_all(engine)
+    # QuotesBase.metadata.create_all(engine)
+
+    # einstein = Author(**{
+    #     'name': 'Albert Einstein',
+    #     'birthday': datetime(month=3, day=14, year=1879).date(),
+    #     'bio': 'Won the 1921 Nobel Prize in Physics.'
+    # })
+    # kennedy = Author(**{
+    #     'name': 'JFK',
+    #     'birthday': datetime(month=5, day=29, year=1917).date(),
+    #     'bio': '35th President.'
+    # })
+
+    # change = Tag(**{'name': 'inspirational'})
+    # deep_thoughts = Tag(**{'name': 'deep thoughts'})
+    # community = Tag(**{'name': 'community'})
+
+    # einstein_quote = Quote(**{
+    #     'quote': (
+    #         'The world as we have created it is a process of our thinking. '
+    #         'It cannot be changed without changing our thinking.'
+    #     ),
+    #     'author': einstein,
+    #     'tags': [change, deep_thoughts]
+    # })
+    # einstein_quote_II = Quote(**{
+    #     'author_id': einstein.subquery('id'),
+    #     'quote': (
+    #         'The world as we have created it is a process of our thinking. '
+    #         'It cannot be changed without changing our thinking.'
+    #     ),
+    #     'tags': [change, deep_thoughts]
+    # })
+    # kennedy_quote = Quote(**{
+    #     'quote': (
+    #         'Ask not what your country can do for you, '
+    #         'but what you can do for your country.'
+    #     ),
+    #     'author': kennedy,
+    #     'tags': [community]
+    # })
+
+    # einstein_from_repr = Author.from_repr(str(einstein))
+    # print(einstein_from_repr == einstein)
+    # print(einstein_from_repr.params == einstein.params)
+
+    # session.execute(insert(Author), [einstein_from_repr.params])
+    # session.commit()
+
+    # einstein_quote_II_from_repr = Quote.from_repr(str(einstein_quote_II))
+    # print(einstein_quote_II_from_repr)
+    # print(einstein_quote_II_from_repr == einstein_quote_II)
+    # print(einstein_quote_II_from_repr.params == einstein_quote_II.params)
+
+    # session.execute(insert(Quote).values([einstein_quote_II_from_repr.params]))
+    # session.commit()
 
 
 ################################################################################

@@ -35,17 +35,14 @@ class QuotesSpider(CrawlSpider):
         for quote in response.xpath('//div[@class="quote"]'):
 
             quote_loader = QuoteLoader(selector=quote)
-            author_subquery_loader = AuthorSubqueryLoader(selector=quote)
+            quote_loader.add_xpath('quote', './/span[@class="content"]/text()')
+            quote_instance = quote_loader.load_item()
 
+            author_subquery_loader = AuthorSubqueryLoader(selector=quote)
             author_subquery_loader.add_xpath(
                 'name', './/a[@class="author"]/text()'
             )
             author_id_subquery = author_subquery_loader.load_item().subquery
-
-            # There may be a better way to do this...
-            # Some way of loading object with subquery for this field
-            quote_loader.add_xpath('quote', './/span[@class="content"]/text()')
-            quote_instance = quote_loader.load_item()
             quote_instance.author_id = author_id_subquery
 
             for tag in quote.xpath('.//span[@class="tag"]/text()').getall():
