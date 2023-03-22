@@ -2,6 +2,7 @@
 import sqlalchemy
 
 # here to be imported via: from scrapy_sql.utils import classproperty
+# used in models.py to add a stmt property to a DeclarativeBase subclass
 from descriptors import classproperty
 import re
 
@@ -36,7 +37,7 @@ def is_scalar_column(column):
         )
     )
 
-
+# TODO string builder
 def subquery_to_string(subquery):
     string_subquery = clean_text(subquery)
     for key, value in subquery.compile().params.items():
@@ -49,6 +50,6 @@ def subquery_to_string(subquery):
 def insert(cls):
     return sqlalchemy.insert(cls)
 
-
+# TODO adjust insert_ignore on a driver by driver basis
 def insert_ignore(cls):
     return sqlalchemy.insert(cls).prefix_with('OR IGNORE')

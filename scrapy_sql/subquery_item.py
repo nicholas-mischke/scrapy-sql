@@ -12,6 +12,9 @@ class SubqueryItem(Item):
     orm_entity = None
     return_columns = tuple()
 
+    #TODO raise exception if SubqueryItem Fields aren't a subset
+    # of orm_entity columns / relationships
+
     @property
     def subquery(self):
         return type(self).orm_entity.subquery_from_dict(

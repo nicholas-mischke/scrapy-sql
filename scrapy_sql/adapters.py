@@ -38,10 +38,13 @@ class _MixinColumnSQLAlchemyAdapter:
         return self.asdict()
 
     def __delitem__(self, field_name: str) -> None:
+        """
+        This resets the attr to None or an empty InstrumentedList
+        """
         del_attribute(self.item, field_name)
 
     def __getitem__(self, field_name: str) -> Any:
-        get_attribute(self.item, field_name)
+        return get_attribute(self.item, field_name)
 
     def __setitem__(self, field_name: str, value: Any) -> None:
         try:
@@ -49,7 +52,7 @@ class _MixinColumnSQLAlchemyAdapter:
         except KeyError:
             raise KeyError(
                 f"{self.item_class_name} does NOT support field: {field_name}\n"
-                f"Supported fields are {', '.join(list(self.field_names))}."
+                f"Supported fields are {', '.join(list(self._fields_dict))}."
             )
 
     def __iter__(self) -> Iterator:
@@ -64,6 +67,7 @@ class SQLAlchemyInstanceAdapter(_MixinColumnSQLAlchemyAdapter, AdapterInterface)
     https://github.com/scrapy/itemadapter#extending-itemadapter
     """
 
+    # Does not currently accept Core tables obj, just ORM classes/instances
     accepted_classes = (DeclarativeAttributeIntercept, )
 
     @classmethod

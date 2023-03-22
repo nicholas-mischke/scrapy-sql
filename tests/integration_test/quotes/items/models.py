@@ -1,4 +1,5 @@
 
+from sqlalchemy.orm import sessionmaker
 from scrapy_sql import ScrapyDeclarativeBase
 from scrapy_sql.subquery_item import SubqueryItem, Field
 
@@ -59,147 +60,43 @@ class AuthorSubquery(SubqueryItem):
 if __name__ == '__main__':
 
     from datetime import datetime
+    from sqlalchemy import create_engine
 
-    einstein = Author(**{
-        'name': 'Albert Einstein',
-        'birthday': datetime(month=3, day=14, year=1879).date(),
-        'bio': 'Won the 1921 Nobel Prize in Physics.'
-    })
+    kennedy_kwargs = {
+        'name': 'John F. Kennedy',
+        'birthday': datetime(month=5, day=29, year=1917),
+        'bio': '35th president of the United States.'
+    }
+    kennedy = Author(**kennedy_kwargs)
 
-    instance_classes = tuple(QuotesBase.sorted_entities)
+    change_kwargs = {'name': 'change'}
+    deep_thoughts_kwargs = {'name': 'deep-thoughts'}
+    change = Tag(**change_kwargs)
+    deep_thoughts = Tag(**deep_thoughts_kwargs)
 
-    for x in instance_classes:
-        print(x, '\n')
+    quote_kwargs = {
+        'quote': 'If not us, who? If not now, when?',
+        'author': kennedy,
+        'tags': [change, deep_thoughts]
+    }
+    quote = Quote(**quote_kwargs)
 
-    print(isinstance(einstein, (Author, Tag, Quote)))
+    in_memory = 'sqlite:///memory:'
+    as_file = 'sqlite:///DB_TESTING.db'
+    engine = create_engine(as_file)
+    Session = sessionmaker()
+    Session.configure(bind=engine, autoflush=False)
+    session = Session()
 
+    QuotesBase.metadata.drop_all(engine)
+    QuotesBase.metadata.create_all(engine)
 
-    # from sqlalchemy import create_engine, select, text
-    # from sqlalchemy.orm import sessionmaker, aliased
-    # from pprint import pprint
+    session.add(quote)
+    session.commit()
 
-    # # Connections params
-    # uri = 'sqlite:///tests/integration_test/quotes_debug.db'
-    # engine = create_engine(uri, echo=True)
+    input('Are the objs in db?')
 
-    # Session = sessionmaker(**{'bind': engine, 'autoflush': False})
-    # session = Session()
+    session.delete(Tag)
+    session.commit()
 
-    # Base = QuotesBase
-
-    # QuotesBase.metadata.drop_all(engine)
-    # QuotesBase.metadata.create_all(engine)
-
-    # einstein = Author(**{
-    #     'name': 'Albert Einstein',
-    #     'birthday': datetime(month=3, day=14, year=1879).date(),
-    #     'bio': 'Won the 1921 Nobel Prize in Physics.'
-    # })
-    # kennedy = Author(**{
-    #     'name': 'JFK',
-    #     'birthday': datetime(month=5, day=29, year=1917).date(),
-    #     'bio': '35th President.'
-    # })
-
-    # change = Tag(**{'name': 'inspirational'})
-    # deep_thoughts = Tag(**{'name': 'deep thoughts'})
-    # community = Tag(**{'name': 'community'})
-
-    # einstein_quote = Quote(**{
-    #     'quote': (
-    #         'The world as we have created it is a process of our thinking. '
-    #         'It cannot be changed without changing our thinking.'
-    #     ),
-    #     'author': einstein,
-    #     'tags': [change, deep_thoughts]
-    # })
-    # einstein_quote_II = Quote(**{
-    #     'author_id': einstein.subquery('id'),
-    #     'quote': (
-    #         'The world as we have created it is a process of our thinking. '
-    #         'It cannot be changed without changing our thinking.'
-    #     ),
-    #     'tags': [change, deep_thoughts]
-    # })
-    # kennedy_quote = Quote(**{
-    #     'quote': (
-    #         'Ask not what your country can do for you, '
-    #         'but what you can do for your country.'
-    #     ),
-    #     'author': kennedy,
-    #     'tags': [community]
-    # })
-
-    # einstein_from_repr = Author.from_repr(str(einstein))
-    # print(einstein_from_repr == einstein)
-    # print(einstein_from_repr.params == einstein.params)
-
-    # session.execute(insert(Author), [einstein_from_repr.params])
-    # session.commit()
-
-    # einstein_quote_II_from_repr = Quote.from_repr(str(einstein_quote_II))
-    # print(einstein_quote_II_from_repr)
-    # print(einstein_quote_II_from_repr == einstein_quote_II)
-    # print(einstein_quote_II_from_repr.params == einstein_quote_II.params)
-
-    # session.execute(insert(Quote).values([einstein_quote_II_from_repr.params]))
-    # session.commit()
-
-
-################################################################################
-################################################################################
-################################################################################
-
-    # # INSERT IGNORE
-    # input('INSERT IGNORE or sqlalchemy.exc.IntegrityError depending on if we query')
-    # # quote = session.query(Quote).one()
-    # session.add(quote)
-    # session.commit()
-
-    # # UPDATE
-    # input('UPDATE')
-    # quote.author = kennedy
-    # session.commit()
-
-    # # DELETE
-    # input('DELETE')
-    # session.delete(quote)
-    # session.commit()
-
-    # authors = session.query(Author).all()
-    # tags = session.query(Tag).all()
-    # quotes = session.query(Quote).all()
-    # quote_tags = session.query(t_quote_tag).all()
-
-    # print('\n\n')
-    # print('Authors:')
-    # for instance in authors:
-    #     print(instance)
-    # print()
-
-    # print('Tags:')
-    # for instance in tags:
-    #     print(instance)
-    # print()
-
-    # print('Quotes:')
-    # for instance in quotes:
-    #     print(instance)
-    # print()
-
-    # print('t_quote_tag:')
-    # for instance in quote_tags:
-    #     print(instance)
-    # print('\n\n')
-
-    # (deque(state.mapper._props.values())
-    # 0: Relationship author
-    # 1: Relationship tags
-    # 2: Column id
-    # 3: Column author_id
-    # 4: Column quote
-
-    # # States & Mappers
-    # quote_state = instance_state(quote)
-    # quote_mapper = quote_state.mapper
-    # quote_base_mapper = quote_mapper.base_mapper
+    input('Deleted Tag???')
