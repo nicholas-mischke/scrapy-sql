@@ -44,7 +44,7 @@ def subquery_to_string(subquery):
         if isinstance(value, str):
             value = f'"{value}"'
         string_subquery = string_subquery.replace(f':{key}', str(value))
-    return string_subquery
+    return string_subquery.lstrip('(').rstrip(')')
 
 
 def insert(cls):

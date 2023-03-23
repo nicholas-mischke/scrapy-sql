@@ -60,7 +60,10 @@ class AuthorSubquery(SubqueryItem):
 if __name__ == '__main__':
 
     from datetime import datetime
-    from sqlalchemy import create_engine
+    from sqlalchemy import create_engine, select
+
+    from scrapy_sql.utils import subquery_to_string
+    from pprint import pprint
 
     kennedy_kwargs = {
         'name': 'John F. Kennedy',
@@ -88,15 +91,20 @@ if __name__ == '__main__':
     Session.configure(bind=engine, autoflush=False)
     session = Session()
 
-    QuotesBase.metadata.drop_all(engine)
-    QuotesBase.metadata.create_all(engine)
+    subquery_string = 'SELECT author.id FROM author WHERE author.name = "Fed"'
+    subquery = Author._from_repr_subquery(None, subquery_string)
+    print(subquery.text)
+    _subquery = select(Author.id).where(Author.name == "Fed")
+    print(subquery == _subquery)
 
-    session.add(quote)
-    session.commit()
 
-    input('Are the objs in db?')
+    print(None)
 
-    session.delete(Tag)
-    session.commit()
+    # QuotesBase.metadata.drop_all(engine)
+    # QuotesBase.metadata.create_all(engine)
 
-    input('Deleted Tag???')
+    # session.add(quote)
+    # session.commit()
+
+
+

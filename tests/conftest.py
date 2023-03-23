@@ -47,6 +47,8 @@ connection_strings = [
     # 'sqlite:///DB_TESTING.db',
     'sqlite:///memory:',
 ]
+
+
 @pytest.fixture(params=connection_strings, scope='function')
 def engine(request):
     engine = create_engine(request.param, echo=False)
@@ -62,9 +64,12 @@ session_configs = [
         'autoflush': False,
     }
 ]
+
+
 @pytest.fixture(params=session_configs, scope='function')
 def session(request, engine):
-    QuotesBase.metadata.drop_all(engine) # Just to be sure we're not working with a "dirty" db
+    # Just to be sure we're not working with a "dirty" db
+    QuotesBase.metadata.drop_all(engine)
     QuotesBase.metadata.create_all(engine)
 
     Session = sessionmaker(**request.param)
@@ -165,3 +170,25 @@ def persistent_instances(persistent_session):
     quote = session.query(Quote).one()
 
     return kennedy, change, deep_thoughts, quote
+
+
+@pytest.fixture(scope='function')
+def empty_quote():
+    yield Quote()
+
+
+@pytest.fixture(scope='function')
+def transient_quote(transient_instances):
+    yield transient_instances[3]
+
+
+@pytest.fixture(scope='function')
+def pending_quote(pending_instances):
+    yield pending_instances[3]
+
+
+@pytest.fixture(scope='function')
+def persistent_quote(persistent_instances):
+    yield persistent_instances[3]
+
+# empty_quote, transient_quote, pending_quote, persistent_quote

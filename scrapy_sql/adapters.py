@@ -9,7 +9,8 @@ from .utils import (
 from itemadapter.adapter import AdapterInterface  # Basically scrapy...
 
 # SQLAlchemy Imports
-from sqlalchemy import func, select, text
+import sqlalchemy
+from sqlalchemy import func, select
 from sqlalchemy.inspection import inspect
 from sqlalchemy.orm.attributes import (
     del_attribute,
@@ -17,6 +18,7 @@ from sqlalchemy.orm.attributes import (
     set_attribute
 )
 from sqlalchemy.orm.base import object_mapper
+from sqlalchemy.orm.base import ONETOMANY, MANYTOONE, MANYTOMANY  # ONETOONE not listed
 from sqlalchemy.orm.collections import InstrumentedList
 from sqlalchemy.orm.decl_api import DeclarativeAttributeIntercept
 from sqlalchemy.sql.sqltypes import (
@@ -29,6 +31,8 @@ from collections.abc import KeysView
 from datetime import datetime
 import json
 from typing import Any, Iterator, List, Optional
+# here for testing
+from pprint import pprint
 
 
 class _MixinColumnSQLAlchemyAdapter:
@@ -142,6 +146,18 @@ class ScrapyDeclarativeBase:
         return result
 
     @classproperty
+    def tablename_to_entity_map(cls):
+        """Used in from_repr classmethod, specifically with subqueries"""
+        entites = [mapper.entity for mapper in cls._sa_registry.mappers]
+        d = {entity.__table__.name: entity for entity in entites}
+
+        for table in cls.sorted_tables:  # Join tables, that don't have an entity
+            if not isinstance(table, ScrapyDeclarativeBase):
+                d.setdefault(table.name, table)
+
+        return d
+
+    @classproperty
     def columns(cls):
         return cls.__table__.columns
 
@@ -151,9 +167,28 @@ class ScrapyDeclarativeBase:
 
     @classproperty
     def column_name_to_column_obj_map(cls):
+        """
+        Used in `subquery` method to allow for column names to be passed
+        instead of column objs
+        """
         return {
             column.name: column
             for column in cls.columns
+        }
+
+    @classproperty
+    def relationships(cls):
+        return inspect(cls).relationships
+
+    @classproperty
+    def relationship_names(cls):
+        return tuple(r.class_attribute.key for r in cls.relationships)
+
+    @classproperty
+    def relationship_name_to_relationship_obj_map(cls):
+        return {
+            relationship.class_attribute.key: relationship
+            for relationship in cls.relationships
         }
 
     @property
@@ -181,7 +216,7 @@ class ScrapyDeclarativeBase:
         }
 
     @classmethod
-    def subquery_from_dict(cls, instance_kwargs, *return_columns):
+    def subquery_from_dict(cls, *return_columns, **instance_kwargs):
         instance = cls(**instance_kwargs)
         return instance.subquery(*return_columns)
 
@@ -196,9 +231,9 @@ class ScrapyDeclarativeBase:
 
         if return_columns == []:  # Default to pks
             mapper = object_mapper(self)
-            return_columns = tuple(mapper._pks_by_table[self.__table__])
-        else:
-            return_columns = tuple(return_columns)
+            return_columns = mapper._pks_by_table[self.__table__]
+
+        return_columns = tuple(return_columns)
 
         where_args = []
 
@@ -206,9 +241,15 @@ class ScrapyDeclarativeBase:
             value = getattr(self, column.name)
 
             # TODO SQLite doesn't work with DATE types, fix this so they will
-            if isinstance(column.type, (Date, DateTime, Time)):
+            if isinstance(column.type, Date):
                 continue
                 # sqlalchemy.func.DATE(column)
+            elif isinstance(column.type, DateTime):
+                continue
+                # sqlalchemy.func.DATETIME(column)
+            elif isinstance(column.type, Time):
+                continue
+                # sqlalchemy.func.TIME(column)
 
             # Subqueries don't work for whatever reason.
             # This could probably be worked around if need be
@@ -230,31 +271,6 @@ class ScrapyDeclarativeBase:
         ):
             return subquery.scalar_subquery()
         return subquery.subquery()
-
-    @classproperty
-    def relationships(cls):
-        return inspect(cls).relationships
-
-    @classproperty
-    def relationship_names(cls):
-        return tuple(r.class_attribute.key for r in cls.relationships)
-
-    @classproperty
-    def relationship_name_to_relationship_obj_map(cls):
-        return {
-            relationship.class_attribute.key: relationship
-            for relationship in cls.relationships
-        }
-
-    @classproperty
-    def tablename_to_entity_map(cls):
-        tables = [table.name for table in cls.metadata.tables]
-        entites = [mapper.entity for mapper in cls._sa_registry.mappers]
-
-        d = {entity.table.name: entity for entity in entites}
-        for table in tables:
-            d.setdefault(table, table)
-        return d
 
     def __repr__(self):
 
@@ -375,7 +391,7 @@ class ScrapyDeclarativeBase:
         # First try to convert a subquery
         try:
             return cls._from_repr_subquery(column, string)
-        except BaseException:
+        except BaseException: # TODO make this a meaningful Exception
             pass
 
         if string == 'None':
@@ -401,15 +417,15 @@ class ScrapyDeclarativeBase:
         elif isinstance(column.type, JSON):
             return json.loads(string)
 
-        raise BaseException()
+        raise BaseException()  # TODO make this a meaningful Exception
 
     @classmethod
     def _from_repr_subquery(cls, column, string):
         """Run SELECT * FROM table back into orm subqueries"""
 
-        if string.startswith('(SELECT'):
-            return text(string)
-        raise BaseException()
+        if string.startswith('SELECT'):
+            return sqlalchemy.text(string)
+        raise BaseException()  # TODO make this a meaningful Exception
 
     @classmethod
     def _from_repr_relationships(cls, relationship, string):
@@ -428,10 +444,12 @@ class ScrapyDeclarativeBase:
             return InstrumentedList()
 
         # TODO this split would be better with regex
+        string = string.lstrip('(').rstrip(')')
         strings = string \
             .lstrip('[').rstrip(']') \
             .split(f", {r_cls.__name__}(")
 
+        # TODO Splitting with regex would remove the need for this code block
         for i, string in enumerate(strings):
             if i == 0:
                 continue

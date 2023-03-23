@@ -127,7 +127,6 @@ class ManyToManyBulkDP:
 class ScrapyBulkSession(Session):
 
     def __init__(self, autoflush=False, *args, feed_options=None, **kwargs):
-
         self.orm_stmts = feed_options['orm_stmts']
         self.sorted_tables = feed_options['declarative_base'].sorted_tables
 

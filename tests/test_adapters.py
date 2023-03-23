@@ -2,16 +2,51 @@
 import pytest
 
 from collections.abc import KeysView
-from datetime import date
+from datetime import date, time, datetime
 
 from integration_test.quotes.items.models import (
     QuotesBase, Author, Tag, Quote, t_quote_tag
 )
 
 import sqlalchemy
+from sqlalchemy import select
+from sqlalchemy import (
+    Column, Date, ForeignKey, Integer, String, Table, Text, Boolean,
+    Numeric, Time, DateTime, JSON
+)
+from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy.orm.collections import InstrumentedList
 
 from scrapy_sql.adapters import SQLAlchemyInstanceAdapter, ScrapyDeclarativeBase
+from scrapy_sql.utils import subquery_to_string
+
+
+# ORM Entities used to test out various from_repr helper methods
+class _TestBase(DeclarativeBase, ScrapyDeclarativeBase):
+    pass
+
+
+class FromReprColumns(_TestBase):
+    __tablename__ = 'from_repr_columns'
+
+    id = Column(Integer, primary_key=True)  # placeholder primary key
+
+    subquery = Column(Integer)
+
+    none_type = Column(String)  # Could really be any DataType
+    boolean = Column(Boolean)
+
+    string = Column(String)
+    text = Column(Text)
+
+    integer = Column(Integer)
+    numeric = Column(Numeric)
+
+    date = Column(Date)
+    time = Column(Time)
+    datetime = Column(DateTime)
+
+    json = Column(JSON)
 
 
 class TestSQLAlchemyInstanceAdapter:
@@ -212,224 +247,319 @@ class TestSQLAlchemyInstanceAdapter:
             == KeysView(expected)
 
 
-# class TestScrapyDeclarativeBase:
+class TestScrapyDeclarativeBase:
 
-#     @pytest.mark.parametrize(
-#         "input, expected",
-#         [
-#             (),
-#             (),
-#             ()
-#         ]
-#     )
-#     def test_sorted_tables(self, input, expected):
-#         pass
+    def test_sorted_tables(self):
+        assert Quote.sorted_tables == [
+            Author.__table__,
+            Tag.__table__,
+            Quote.__table__,
+            t_quote_tag
+        ]
 
-#     @pytest.mark.parametrize(
-#         "input, expected",
-#         [
-#             (),
-#             (),
-#             ()
-#         ]
-#     )
-#     def test_sorted_entities(self, input, expected):
-#         pass
+    def test_sorted_entities(self):
+        assert Quote.sorted_entities == [
+            Author,
+            Tag,
+            Quote
+        ]
 
-#     @pytest.mark.parametrize(
-#         "input, expected",
-#         [
-#             (),
-#             (),
-#             ()
-#         ]
-#     )
-#     def test_columns(self, input, expected):
-#         pass
+    def test_tablename_to_entity_map(self):
+        assert Quote.tablename_to_entity_map == {
+            'author': Author,
+            'tag': Tag,
+            'quote': Quote,
+            'quote_tag': t_quote_tag
+        }
 
-#     @pytest.mark.parametrize(
-#         "input, expected",
-#         [
-#             (),
-#             (),
-#             ()
-#         ]
-#     )
-#     def test_column_names(self, input, expected):
-#         pass
+    @pytest.mark.skip(reason="wrapper property")
+    def test_columns(self):
+        pass
 
-#     @pytest.mark.parametrize(
-#         "input, expected",
-#         [
-#             (),
-#             (),
-#             ()
-#         ]
-#     )
-#     def test_column_name_to_column_obj_map(self, input, expected):
-#         pass
+    @pytest.mark.parametrize(
+        "instance, expected",
+        [
+            (Author(), ('id', 'name', 'birthday', 'bio')),
+            (Tag(), ('id', 'name')),
+            (Quote(), ('id', 'author_id', 'quote')),
+        ]
+    )
+    def test_column_names(self, instance, expected):
+        assert instance.column_names == expected
 
-#     @pytest.mark.parametrize(
-#         "input, expected",
-#         [
-#             (),
-#             (),
-#             ()
-#         ]
-#     )
-#     def test_unloaded_columns(self, input, expected):
-#         pass
+    @pytest.mark.skip(reason="dictionary comprehension of wrapper property")
+    def test_column_name_to_column_obj_map(self):
+        pass
 
-#     @pytest.mark.parametrize(
-#         "input, expected",
-#         [
-#             (),
-#             (),
-#             ()
-#         ]
-#     )
-#     def test_loaded_columns(self, input, expected):
-#         pass
+    @pytest.mark.skip(reason="wrapper property")
+    def test_relationships(self):
+        pass
 
-#     @pytest.mark.parametrize(
-#         "input, expected",
-#         [
-#             (),
-#             (),
-#             ()
-#         ]
-#     )
-#     def test_params(self, input, expected):
-#         pass
+    @pytest.mark.parametrize(
+        "input, expected",
+        [
+            (Author, tuple()),
+            (Quote, ('author', 'tags'))
+        ]
+    )
+    def test_relationship_names(self, input, expected):
+        assert input.relationship_names == expected
 
-#     @pytest.mark.parametrize(
-#         "input, expected",
-#         [
-#             (),
-#             (),
-#             ()
-#         ]
-#     )
-#     def test_subquery_from_dict(self, input, expected):
-#         pass
+    @pytest.mark.skip(reason="dictionary comprehension of wrapper property")
+    def test_relationship_name_to_relationship_obj_map(self):
+        pass
 
-#     @pytest.mark.parametrize(
-#         "input, expected",
-#         [
-#             (),
-#             (),
-#             ()
-#         ]
-#     )
-#     def test_subquery(self, input, expected):
-#         pass
+    def test_unloaded_columns_empty(self, empty_quote):
+        unloaded_columns = empty_quote.unloaded_columns
+        assert tuple(c.name for c in unloaded_columns) \
+            == ('id', 'author_id', 'quote')
 
-#     @pytest.mark.parametrize(
-#         "input, expected",
-#         [
-#             (),
-#             (),
-#             ()
-#         ]
-#     )
-#     def test_relationships(self, input, expected):
-#         pass
+    def test_unloaded_columns_pending(self, pending_quote):
+        unloaded_columns = pending_quote.unloaded_columns
+        assert tuple(c.name for c in unloaded_columns) \
+            == ('id', 'author_id')
 
-#     @pytest.mark.parametrize(
-#         "input, expected",
-#         [
-#             (),
-#             (),
-#             ()
-#         ]
-#     )
-#     def test_relationship_names(self, input, expected):
-#         pass
+    def test_unloaded_columns_persistent(self, persistent_quote):
+        assert persistent_quote.unloaded_columns == tuple()
 
-#     @pytest.mark.parametrize(
-#         "input, expected",
-#         [
-#             (),
-#             (),
-#             ()
-#         ]
-#     )
-#     def test_relationship_name_to_relationship_obj_map(self, input, expected):
-#         pass
+    def test_loaded_columns_empty(self, empty_quote):
+        assert empty_quote.loaded_columns == tuple()
 
-#     @pytest.mark.parametrize(
-#         "input, expected",
-#         [
-#             (),
-#             (),
-#             ()
-#         ]
-#     )
-#     def test_tablename_to_entity_map(self, input, expected):
-#         pass
+    def test_loaded_columns_pending(self, pending_quote):
+        loaded_columns = pending_quote.loaded_columns
+        assert tuple(c.name for c in loaded_columns) \
+            == ('quote', )
 
-#     @pytest.mark.parametrize(
-#         "input, expected",
-#         [
-#             (),
-#             (),
-#             ()
-#         ]
-#     )
-#     def test_dunder_repr(self, input, expected):
-#         pass
+    def test_loaded_columns_persistent(self, persistent_quote):
+        loaded_columns = persistent_quote.loaded_columns
+        assert tuple(c.name for c in loaded_columns) \
+            == ('id', 'author_id', 'quote')
 
-#     @pytest.mark.parametrize(
-#         "input, expected",
-#         [
-#             (),
-#             (),
-#             ()
-#         ]
-#     )
-#     def test_from_repr(self, input, expected):
-#         pass
+    def test_params(self, pending_quote):
+        assert pending_quote.params == {
+            'quote': 'If not us, who? If not now, when?'
+        }
 
-#     @pytest.mark.parametrize(
-#         "input, expected",
-#         [
-#             (),
-#             (),
-#             ()
-#         ]
-#     )
-#     def test_under_from_repr_kwargs(self, input, expected):
-#         pass
+    @pytest.mark.parametrize(
+        "cls, return_columns, instance_kwargs, subquery_string",
+        [
+            (
+                Author,
+                tuple(),
+                {'name': 'Fat Albert'},
+                'SELECT author.id FROM author WHERE author.name = "Fat Albert"'
+            ),
+            (
+                Author,
+                ('birthday', ),
+                {'name': 'Fat Albert'},
+                'SELECT author.birthday FROM author WHERE author.name = "Fat Albert"'
+            ),
+            (
+                Author,
+                ('id', 'birthday'),
+                {'name': 'Fat Albert'},
+                'SELECT author.id, author.birthday FROM author WHERE author.name = "Fat Albert"'
+            ),
+        ]
+    )
+    def test_subquery_from_dict(self, cls, return_columns, instance_kwargs, subquery_string):
+        assert subquery_to_string(cls.subquery_from_dict(
+            *return_columns, **instance_kwargs
+        )) == subquery_string
 
-#     @pytest.mark.parametrize(
-#         "input, expected",
-#         [
-#             (),
-#             (),
-#             ()
-#         ]
-#     )
-#     def test_under_from_repr_columns(self, input, expected):
-#         pass
+    def test_subquery(self, pending_instances):
+        """Is really both a test for subquery method and utils.subquery_to_string func"""
+        kennedy, change, deep_thoughts, quote = pending_instances
 
-#     @pytest.mark.parametrize(
-#         "input, expected",
-#         [
-#             (),
-#             (),
-#             ()
-#         ]
-#     )
-#     def test_under_from_repr_subquery(self, input, expected):
-#         pass
+        assert subquery_to_string(kennedy.subquery()) == (
+            'SELECT author.id FROM author '
+            'WHERE author.name = "John F. Kennedy" '
+            'AND author.bio = "35th president of the United States."'
+        )
 
-#     @pytest.mark.parametrize(
-#         "input, expected",
-#         [
-#             (),
-#             (),
-#             ()
-#         ]
-#     )
-#     def test_under_from_repr_relationships(self, input, expected):
-#         pass
+        assert subquery_to_string(change.subquery()) == (
+            'SELECT tag.id FROM tag WHERE tag.name = "change"'
+        )
+
+        assert subquery_to_string(quote.subquery()) == (
+            'SELECT quote.id FROM quote WHERE quote.quote = "If not us, who? If not now, when?"'
+        )
+
+    def test_dunder_repr(self, persistent_instances):
+        kennedy, change, deep_thoughts, quote = persistent_instances
+
+        assert repr(kennedy) == \
+            'Author(id=1, name="John F. Kennedy", birthday=1917-05-29, bio="35th president of the United States.")'
+
+        assert repr(change) == \
+            'Tag(id=1, name="change")'
+
+        assert repr(quote) == (
+            'Quote(id=1, author_id=1, '
+            'quote="If not us, who? If not now, when?", '
+            'author=Author(id=1, name="John F. Kennedy", birthday=1917-05-29, bio="35th president of the United States."), '
+            'tags=[Tag(id=1, name="change"), Tag(id=2, name="deep-thoughts")])'
+        )
+
+    def test_from_repr(self):
+        quote_string = (
+            'Quote(id=1, author_id=1, '
+            'quote="If not us, who? If not now, when?", '
+            'author=Author(id=1, name="John F. Kennedy", birthday=1917-05-29, bio="35th president of the United States."), '
+            'tags=[Tag(id=1, name="change"), Tag(id=2, name="deep-thoughts")])'
+        )
+        quote = Quote.from_repr(quote_string)
+
+        assert quote.id == 1
+        assert quote.author_id == 1
+        assert quote.quote == "If not us, who? If not now, when?"
+
+        kennedy = quote.author
+        assert kennedy.id == 1
+        assert kennedy.name == "John F. Kennedy"
+        assert kennedy.birthday == date(day=29, month=5, year=1917)
+        assert kennedy.bio == "35th president of the United States."
+
+        change, deep_thoughts = quote.tags  # Should be ordered, I think...
+        assert change.id == 1
+        assert change.name == "change"
+
+        assert deep_thoughts.id == 2
+        assert deep_thoughts.name == "deep-thoughts"
+
+    def test_under_from_repr_kwargs(self):
+        kennedy_repr = 'Author(id=1, name="John F. Kennedy", birthday=1917-05-29, bio="35th president of the United States.")'
+        change_repr = 'Tag(id=1, name="change")'
+        deep_thoughts_repr = 'Tag(id=2, name="deep-thoughts")'
+        quote_repr = (
+            'Quote(id=1, author_id=1, '
+            'quote="If not us, who? If not now, when?", '
+            'author=Author(id=1, name="John F. Kennedy", birthday=1917-05-29, bio="35th president of the United States."), '
+            'tags=[Tag(id=1, name="change"), Tag(id=2, name="deep-thoughts")])'
+        )
+
+        assert Author._from_repr_kwargs(kennedy_repr) == {
+            'id': '1',
+            'name': 'John F. Kennedy',
+            'birthday': '1917-05-29',
+            'bio': '35th president of the United States.'
+        }
+        assert Tag._from_repr_kwargs(change_repr) == {
+            'id': '1',
+            'name': 'change'
+        }
+        assert Tag._from_repr_kwargs(deep_thoughts_repr) == {
+            'id': '2',
+            'name': 'deep-thoughts'
+        }
+        assert Quote._from_repr_kwargs(quote_repr) == {
+            'id': '1',
+            'author_id': '1',
+            'quote': 'If not us, who? If not now, when?',
+            'author': kennedy_repr,
+            'tags': f"[{change_repr}, {deep_thoughts_repr}]"
+        }
+
+    def test_under_from_repr_columns(self):
+        columns = FromReprColumns.columns
+        values = (
+            '1',  # id (also an Integer)
+            'SELECT from_repr_columns.id FROM from_repr_columns WHERE text = "test string"',  # subquery
+            'None',  # none_type value for any Column DataType
+            'False',  # Boolean
+            'test string',  # String
+            'test text',  # Text
+            '10',  # Integer
+            '1.25',  # Numeric
+            '2000-01-01',  # Date
+            '10:30:15',  # Time
+            '2000-01-01 10:30:15',  # DateTime
+            '{"key_1": 1, "key_2": 2}'  # JSON
+        )
+        columns_and_strings = dict(zip(columns, values))
+
+        results = {}
+        for column, string in columns_and_strings.items():
+            results[column.name] = FromReprColumns._from_repr_columns(
+                column,
+                string
+            )
+
+        assert results['subquery'].is_clause_element
+        results['subquery'] = subquery_to_string(results['subquery'])
+
+        assert results == {
+            'id': 1,
+            'subquery': 'SELECT from_repr_columns.id FROM from_repr_columns WHERE text = "test string"',
+
+            'none_type': None,
+            'boolean': False,
+
+            'string': 'test string',
+            'text': 'test text',
+
+            'integer': 10,
+            'numeric': 1.25,
+
+            'date': date(day=1, month=1, year=2000),
+            'time': time(hour=10, minute=30, second=15),
+            'datetime': datetime(day=1, month=1, year=2000, hour=10, minute=30, second=15),
+
+            'json': {"key_1": 1, "key_2": 2}
+        }
+
+    def test_under_from_repr_subquery(self):
+        subquery_string = 'SELECT author.id FROM author WHERE author.name = "Fed"'
+        subquery = Author._from_repr_subquery(None, subquery_string)
+
+        assert subquery.is_clause_element
+        assert subquery.text == subquery_string
+
+    def test_under_from_repr_relationships(self):
+        relationships = Quote.relationships
+        values = (
+            'Author(id=1, name="John F. Kennedy", birthday=1917-05-29, bio="35th president of the United States.")',
+            '[Tag(id=1, name="change"), Tag(id=2, name="deep-thoughts")])'
+        )
+        relationships_and_strings = dict(zip(relationships, values))
+
+        results = {}
+        for relationship, string in relationships_and_strings.items():
+            results[relationship.class_attribute.key] = Quote._from_repr_relationships(
+                relationship, string
+            )
+
+        assert isinstance(results['author'], Author)
+        assert isinstance(results['tags'], InstrumentedList)
+        for instance in results['tags']:
+            assert isinstance(instance, Tag)
+
+        author = results['author']
+        assert author.id == 1
+        assert author.name == "John F. Kennedy"
+        assert author.birthday == date(day=29, month=5, year=1917)
+        assert author.bio == "35th president of the United States."
+
+        change, deep_thoughts = results['tags']
+
+        assert change.id == 1
+        assert change.name == 'change'
+
+        assert deep_thoughts.id == 2
+        assert deep_thoughts.name == 'deep-thoughts'
+
+        # Empty Values
+        values = ('None', '[]')
+        relationships_and_strings = dict(zip(relationships, values))
+
+        results = {}
+        for relationship, string in relationships_and_strings.items():
+            results[relationship.class_attribute.key] = Quote._from_repr_relationships(
+                relationship, string
+            )
+
+        assert results['author'] == None
+        assert results['tags'] == InstrumentedList()
+
+
