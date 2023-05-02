@@ -3,7 +3,7 @@ import pytest
 
 from sqlalchemy import select, Column, Numeric, Integer, Text, Date
 
-from integration_test.quotes.items.models import (
+from integration_test_project.quotes.items.models import (
     QuotesBase, Author, Tag, Quote, t_quote_tag
 )
 from scrapy_sql.utils import *
@@ -57,13 +57,3 @@ def test_is_scalar_column(input, expected):
 )
 def test_subquery_to_string(input, expected):
     assert subquery_to_string(input) == expected
-
-
-@pytest.mark.skip(reason="wrapper func")
-def test_insert():
-    pass
-
-
-@pytest.mark.skip(reason="wrapper func")
-def test_insert_ignore():
-    pass

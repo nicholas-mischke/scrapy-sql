@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.orm.collections import InstrumentedList
 
 # Models are the same here as in the integration_test
-from integration_test.quotes.items.models import (
+from integration_test_project.quotes.items.models import (
     QuotesBase, Author, Tag, Quote, t_quote_tag
 )
 

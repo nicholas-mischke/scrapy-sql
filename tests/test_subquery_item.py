@@ -1,7 +1,7 @@
 
 import pytest
 
-from integration_test.quotes.items.models import (
+from integration_test_project.quotes.items.models import (
     QuotesBase, Author, Tag, Quote, t_quote_tag
 )
 
@@ -49,3 +49,11 @@ def test_suquery(input, expected):
     assert subquery_to_string(input.subquery) == expected
 
 
+class IllegalReturnColumns(SubqueryItem):
+
+    orm_entity = Author
+    return_columns = ('name', 'column_name_that_does_not_belong_to_Author')
+
+def test_illegal_columns():
+    with pytest.raises(ValueError):
+        IllegalReturnColumns()

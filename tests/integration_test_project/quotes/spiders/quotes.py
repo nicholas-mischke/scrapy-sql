@@ -63,6 +63,59 @@ class QuotesSpider(CrawlSpider):
         yield loader.load_item()
 
 
+class QuotesToScrapeSpider(CrawlSpider):
+    """
+    Does not scrape website on localhost
+    This spider scrapes Zyte's https://quotes.toscrape.com/
+    """
+    name = 'quotes_to_scrape'
+    allowed_domains = []
+    start_urls = ['https://quotes.toscrape.com/']
+
+    rules = (
+        Rule(
+            link_extractor=LinkExtractor(allow=(r"page_\d")),
+            callback='parse_quotes'
+        ),
+        Rule(
+            link_extractor=LinkExtractor(allow=(r"\/authors\/")),
+            callback='parse_author'
+        )
+    )
+
+    def parse_quotes(self, response):
+
+        for quote in response.xpath('//div[@class="quote"]'):
+
+            quote_loader = QuoteLoader(selector=quote)
+            quote_loader.add_xpath('quote', './/span[@class="content"]/text()')
+            quote_instance = quote_loader.load_item()
+
+            author_subquery_loader = AuthorSubqueryLoader(selector=quote)
+            author_subquery_loader.add_xpath(
+                'name', './/a[@class="author"]/text()'
+            )
+            author_id_subquery = author_subquery_loader.load_item().subquery
+            quote_instance.author_id = author_id_subquery
+
+            for tag in quote.xpath('.//span[@class="tag"]/text()').getall():
+                tag_loader = TagLoader()
+                tag_loader.add_value('name', tag)
+
+                quote_instance.tags.append(tag_loader.load_item())
+
+            yield quote_instance
+
+    def parse_author(self, response):
+        loader = AuthorLoader(selector=response)
+
+        loader.add_xpath('name',     '//h1/text()')
+        loader.add_xpath('birthday', '//span[@class="date"]/text()')
+        loader.add_xpath('bio',      '//span[@class="bio"]/text()')
+
+        yield loader.load_item()
+
+
 class SingleQuoteSpider(Spider):
     """
     Spider that yields a single instance, with relationship

@@ -12,7 +12,7 @@ if cwd != project_dir:
     os.chdir(project_dir)
 
 # These are essentially temp files, that are used for outputs
-# generated during a crawl. If they exists we'll delete them, as the crawl
+# generated during a test crawl. If they exists we'll delete them, as the crawl
 # will generate new ones.
 quotes_dot_db_file = project_dir / 'quotes.db'
 quotes_dot_log_file = project_dir / 'quotes.log'
@@ -26,8 +26,6 @@ cur = conn.cursor()
 
 # The inserts happen in a random order...
 # so knowing the ids of certain rows is important in later asserts
-
-
 def test_records():
 
     # Testing author Table

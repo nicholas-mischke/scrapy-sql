@@ -4,7 +4,7 @@ import pytest
 from collections.abc import KeysView
 from datetime import date, time, datetime
 
-from integration_test.quotes.items.models import (
+from integration_test_project.quotes.items.models import (
     QuotesBase, Author, Tag, Quote, t_quote_tag
 )
 

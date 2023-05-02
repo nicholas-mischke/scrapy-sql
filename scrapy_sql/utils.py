@@ -1,12 +1,12 @@
 
 import sqlalchemy
+import re
 
 # here to be imported via: from scrapy_sql.utils import classproperty
 # used in models.py to add a stmt property to a DeclarativeBase subclass
 from descriptors import classproperty
-import re
 
-
+# def normalize_whitespace(text)
 def clean_text(text):
 
     text = str(text).encode('ascii', 'ignore').decode('utf-8')
@@ -45,11 +45,3 @@ def subquery_to_string(subquery):
             value = f'"{value}"'
         string_subquery = string_subquery.replace(f':{key}', str(value))
     return string_subquery.lstrip('(').rstrip(')')
-
-
-def insert(cls):
-    return sqlalchemy.insert(cls)
-
-# TODO adjust insert_ignore on a driver by driver basis
-def insert_ignore(cls):
-    return sqlalchemy.insert(cls).prefix_with('OR IGNORE')

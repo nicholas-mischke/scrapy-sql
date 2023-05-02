@@ -3,6 +3,7 @@
 from .utils import column_value_is_subquery
 
 # Scrapy / Twisted Imports
+from scrapy.utils.misc import load_object
 from scrapy.utils.python import flatten
 
 # SQLAlchemy Imports
@@ -127,8 +128,9 @@ class ManyToManyBulkDP:
 class ScrapyBulkSession(Session):
 
     def __init__(self, autoflush=False, *args, feed_options=None, **kwargs):
-        self.orm_stmts = feed_options['orm_stmts']
-        self.sorted_tables = feed_options['declarative_base'].sorted_tables
+        self.orm_stmts = feed_options['orm_stmts'] # tables and stmts loaded
+        self.Base = load_object(feed_options['declarative_base'])
+        self.sorted_tables = self.Base.sorted_tables
 
         super().__init__(autoflush=autoflush, *args, **kwargs)
 
@@ -144,6 +146,8 @@ class ScrapyBulkSession(Session):
 
             for r in mapper.relationships:
 
+                # TODO add ONETOONE & ONETOMANY
+
                 if r.direction is MANYTOONE:
                     ManyToOneBulkDP(instance, r).prepare()
 
@@ -154,6 +158,9 @@ class ScrapyBulkSession(Session):
                     )
 
             table_params[instance.__table__].append(instance.params)
+
+        # TODO add a log here of all prepared instances
+        # allowing them to be recreated via the log file instead of another crawl
 
         # UOW INSERTs / UPSERTs occur on self.commit()
         # We're only interested in BULK INSERTs / UPSERTs here
