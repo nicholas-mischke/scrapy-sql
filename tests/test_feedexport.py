@@ -130,12 +130,12 @@ class TestSQLAlchemyFeedStorage:
             (
                 LoadTable_Model,
                 LoadTable_Model.__table__
-            ), # Model
+            ),  # Model
             (
                 load_table_table,
                 load_table_table
-            ), # Table
+            ),  # Table
         ]
     )
     def test_under_load_table(self, obj, table):
-       assert SQLAlchemyFeedStorage._load_table(obj) == table
+        assert SQLAlchemyFeedStorage._load_table(obj) == table
