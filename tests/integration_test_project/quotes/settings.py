@@ -1,5 +1,9 @@
 
 from pathlib import Path
+from sqlalchemy import insert
+
+def insert_ignore(table):
+    return insert(table).prefix_with('OR IGNORE')
 
 BOT_NAME = 'quotes'
 
@@ -23,12 +27,9 @@ FEEDS = {
         'format': 'sql',
         'declarative_base': 'quotes.items.models.QuotesBase',
         'item_filter': 'scrapy_sql.feedexport.SQLAlchemyInstanceFilter',
-        # 'engine_echo': True,
+        'engine_echo': True,
         'orm_stmts': {
-            'quotes.items.models.Author':      'scrapy_sql.utils.insert_ignore',
-            'quotes.items.models.Tag':         'scrapy_sql.utils.insert_ignore',
-            'quotes.items.models.Quote':       'scrapy_sql.utils.insert_ignore',
-            'quotes.items.models.t_quote_tag': 'scrapy_sql.utils.insert_ignore'
+            'quotes.items.models.Tag': insert_ignore,
         }
     }
 }

@@ -11,7 +11,7 @@ from scrapy_sql.session import ScrapyBulkSession
 from scrapy import signals
 from scrapy.extensions.feedexport import IFeedStorage, build_storage
 from scrapy.exceptions import NotConfigured
-from scrapy.utils.misc import load_object
+from scrapy.utils.misc import create_instance, load_object
 from scrapy.utils.python import get_func_args
 
 from twisted.internet import threads
@@ -22,9 +22,12 @@ from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.orm.decl_api import DeclarativeAttributeIntercept
 
 # 3rd 🎉 Imports
+from inspect import isclass, isfunction
 from urllib.parse import urlparse
 from zope.interface import implementer
 
+
+from pprint import pprint
 
 class SQLAlchemyInstanceFilter:
     def __init__(self, feed_options):
@@ -71,24 +74,32 @@ class SQLAlchemyFeedStorage:
         feed_options.get('sessionmaker_kwargs').setdefault('class_', Session)
 
         # set up orm_stmts
+        feed_options.setdefault('orm_stmts', {})
+        orm_stmts = feed_options.get('orm_stmts')
+
+        Base = load_object(feed_options.get('declarative_base'))
+        sorted_tables = Base.metadata.sorted_tables
+
         default_stmt = load_object(
             crawler.settings.get('SQLALCHEMY_DEFAULT_ORM_STMT')
             or _default_insert
         )
-        Base = load_object(feed_options.get('declarative_base'))
-        sorted_tables = Base.metadata.sorted_tables
 
-        feed_options.setdefault('orm_stmts', {})
-        orm_stmts = feed_options.get('orm_stmts')
-
-        _orm_stmts = {}  # Avoid RuntimeError: dictionary changed size during iteration
+        # Determine custom set values first
+        _orm_stmts = {}
         for table, stmt in orm_stmts.items():
-            _orm_stmts[SQLAlchemyFeedStorage._load_table(table)] \
-                = load_object(stmt)
+            _orm_stmts[
+                SQLAlchemyFeedStorage._load_table(table)
+            ] = \
+                SQLAlchemyFeedStorage._load_stmt(stmt, table)
         orm_stmts = _orm_stmts
 
+        # If it isn't custom, set default
         for table in sorted_tables:
-            orm_stmts.setdefault(table, default_stmt)
+            orm_stmts.setdefault(
+                SQLAlchemyFeedStorage._load_table(table),
+                SQLAlchemyFeedStorage._load_stmt(default_stmt, table)
+            )
         feed_options['orm_stmts'] = orm_stmts
 
         # set add in both feed_options and item_export_kwargs
@@ -130,21 +141,17 @@ class SQLAlchemyFeedStorage:
         self.uri = uri
         self.feed_options = feed_options
 
+        self.Base = load_object(feed_options.get('declarative_base'))
+        self.commit = load_object(feed_options.get('commit'))
+
         self.engine = create_engine(self.uri, echo=feed_options.get('echo'))
 
         # sessionmake_kwargs args
         # bind, class_, autoflush, expire_on_commit, info
         self.sessionmaker_kwargs = feed_options.get('sessionmaker_kwargs')
-
-        try:
-            self.sessionmaker_kwargs['bind'] = load_object(
-                self.sessionmaker_kwargs['bind'])
-        except KeyError:
-            self.sessionmaker_kwargs['bind'] = self.engine
-
+        self.sessionmaker_kwargs['bind'] = self.engine
         session_cls = load_object(self.sessionmaker_kwargs['class_'])
         self.sessionmaker_kwargs['class_'] = session_cls
-
         if 'feed_options' in get_func_args(session_cls):
             self.sessionmaker_kwargs['feed_options'] = feed_options
 
@@ -152,10 +159,7 @@ class SQLAlchemyFeedStorage:
         self.session = self.Session()
 
         # Create database/tables if they don't already exist
-        self.Base = load_object(feed_options.get('declarative_base'))
         self.Base.metadata.create_all(self.engine)
-
-        self.commit = load_object(feed_options.get('commit'))
 
     def open(self, spider):
         self.session.rollback()
@@ -183,3 +187,18 @@ class SQLAlchemyFeedStorage:
             return table
 
         raise TypeError()
+
+    @staticmethod
+    def _load_stmt(stmt, table):
+
+        table = SQLAlchemyFeedStorage._load_table(table)
+
+        if isinstance(stmt, str):
+            smt = load_object(smt)
+
+        if isfunction(stmt):
+            stmt = stmt(table)
+        elif isclass(stmt): # Already what we want
+            pass
+
+        return stmt
