@@ -1,7 +1,7 @@
 
 import pytest
 from copy import copy, deepcopy
-from datetime import datetime
+from datetime import date
 
 from sqlalchemy import create_engine
 from sqlalchemy.exc import IntegrityError
@@ -15,7 +15,7 @@ from integration_test_project.quotes.items.models import (
 
 kennedy_kwargs = {
     'name': 'John F. Kennedy',
-    'birthday': datetime(month=5, day=29, year=1917),
+    'birthday': date(month=5, day=29, year=1917),
     'bio': '35th president of the United States.'
 }
 kennedy = Author(**kennedy_kwargs)
@@ -191,4 +191,45 @@ def pending_quote(pending_instances):
 def persistent_quote(persistent_instances):
     yield persistent_instances[3]
 
-# empty_quote, transient_quote, pending_quote, persistent_quote
+
+# ManyToOne DP
+@pytest.fixture(scope='function')
+def simple_kennedy_without_id():
+    yield Author(**{'name': 'John F. Kennedy'})
+
+
+@pytest.fixture(scope='function')
+def simple_kennedy_with_id(simple_kennedy_without_id):
+    kennedy = simple_kennedy_without_id
+    kennedy.id = 10
+    yield kennedy
+
+
+@pytest.fixture(scope='function')
+def simple_quote_with_only_author_id(empty_quote):
+    quote = empty_quote
+    quote.author_id = 1
+    yield quote
+
+
+@pytest.fixture(scope='function')
+def simple_quote_with_simple_kennedy_without_id(empty_quote, simple_kennedy_without_id):
+    quote = empty_quote
+    quote.author = simple_kennedy_without_id
+    yield quote
+
+
+@pytest.fixture(scope='function')
+def simple_quote_with_simple_kennedy_with_id(empty_quote, simple_kennedy_with_id):
+    quote = empty_quote
+    quote.author = simple_kennedy_with_id
+    yield quote
+
+
+@pytest.fixture(scope='function')
+def transient_quote_with_id(transient_quote):
+    quote = transient_quote
+    quote.id = 101
+    yield quote
+
+

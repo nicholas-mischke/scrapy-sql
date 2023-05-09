@@ -76,17 +76,11 @@ class ManyToManyBulkDP:
         parent_column,
         join_table_column
     ):
-        d = {}
-
-        parent_value = getattr(parent_instance, parent_column.name)
-
-        if parent_value is not None:
-            d[join_table_column.name] = parent_value
-        else:
-            d[join_table_column.name] = parent_instance \
-                .subquery(parent_column)
-
-        return d
+        return {
+            join_table_column.name :
+            getattr(parent_instance, parent_column.name) # parent value if present
+            or parent_instance.subquery(parent_column)   # else subquery
+        }
 
     def prepare_secondary(self):
         """
