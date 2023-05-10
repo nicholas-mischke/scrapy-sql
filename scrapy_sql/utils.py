@@ -1,13 +1,21 @@
 
-import sqlalchemy
-import re
+# Scrapy / Twisted Imports
+from scrapy.utils.misc import load_object
 
+# SQLAlchemy Imports
+import sqlalchemy
+from sqlalchemy import Table
+from sqlalchemy.orm.decl_api import DeclarativeAttributeIntercept
+
+# 3rd 🎉 Imports
+from inspect import isclass, isfunction
+import re
 # here to be imported via: from scrapy_sql.utils import classproperty
 # used in models.py to add a stmt property to a DeclarativeBase subclass
 from descriptors import classproperty
 
-# def normalize_whitespace(text)
-def clean_text(text):
+
+def normalize_whitespace(text):
 
     text = str(text).encode('ascii', 'ignore').decode('utf-8')
 
@@ -39,9 +47,35 @@ def is_scalar_column(column):
 
 # TODO string builder
 def subquery_to_string(subquery):
-    string_subquery = clean_text(subquery)
+    string_subquery = normalize_whitespace(subquery)
     for key, value in subquery.compile().params.items():
         if isinstance(value, str):
             value = f'"{value}"'
         string_subquery = string_subquery.replace(f':{key}', str(value))
     return string_subquery.lstrip('(').rstrip(')')
+
+
+def load_table(table):
+    if isinstance(table, str):
+        table = load_object(table)
+
+    if isinstance(table, DeclarativeAttributeIntercept):
+        return table.__table__
+    elif isinstance(table, Table):
+        return table
+
+    raise TypeError()
+
+
+def load_stmt(stmt):
+    if isinstance(stmt, str):
+        stmt = load_object(stmt)
+
+    return stmt
+
+    # if isfunction(stmt):
+    #     stmt = stmt(table)
+    # elif isclass(stmt):  # Already what we want
+    #     pass
+
+    # return stmt

@@ -1,18 +1,21 @@
 
 # Project Imports
-from .utils import column_value_is_subquery
+from .utils import column_value_is_subquery, load_table, load_stmt
 
 # Scrapy / Twisted Imports
 from scrapy.utils.misc import load_object
 from scrapy.utils.python import flatten
 
 # SQLAlchemy Imports
+from sqlalchemy import Table
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import instance_state
 from sqlalchemy.orm.base import ONETOMANY, MANYTOONE, MANYTOMANY  # ONETOONE not listed
 
+
 # 3rd 🎉 Imports
 from copy import deepcopy
+
 
 
 class ManyToOneBulkDP:
@@ -122,9 +125,11 @@ class ManyToManyBulkDP:
 class ScrapyBulkSession(Session):
 
     def __init__(self, autoflush=False, *args, feed_options=None, **kwargs):
-        self.orm_stmts = feed_options['orm_stmts'] # tables and stmts loaded
+
         self.Base = load_object(feed_options['declarative_base'])
         self.sorted_tables = self.Base.sorted_tables
+
+        self.orm_stmts = feed_options['orm_stmts']
 
         super().__init__(autoflush=autoflush, *args, **kwargs)
 
@@ -163,7 +168,7 @@ class ScrapyBulkSession(Session):
         self.expunge_all()
 
         for table in self.sorted_tables:
-            statement = self.orm_stmts[table]
+            statement = self.orm_stmts[table](table) 
             params = table_params[table]
 
             if not params:

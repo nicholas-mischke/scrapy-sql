@@ -1,12 +1,17 @@
 
 import pytest
 
-from sqlalchemy import select, Column, Numeric, Integer, Text, Date
+from sqlalchemy import insert, select, Column, Numeric, Integer, Text, Date
+from sqlalchemy.orm import DeclarativeBase
 
 from integration_test_project.quotes.items.models import (
     QuotesBase, Author, Tag, Quote, t_quote_tag
 )
+
 from scrapy_sql.utils import *
+from scrapy_sql._defaults import _default_insert
+from scrapy_sql import ScrapyDeclarativeBase
+
 
 
 @pytest.mark.parametrize(
@@ -16,8 +21,8 @@ from scrapy_sql.utils import *
         ("text          text", "text text"),
     ]
 )
-def test_clean_text(input, expected):
-    assert clean_text(input) == expected
+def test_normalize_whitespace(input, expected):
+    assert normalize_whitespace(input) == expected
 
 
 @pytest.mark.parametrize(
@@ -57,3 +62,60 @@ def test_is_scalar_column(input, expected):
 )
 def test_subquery_to_string(input, expected):
     assert subquery_to_string(input) == expected
+
+
+# _Load_Table
+class LoadTable_DeclarativeBase(DeclarativeBase, ScrapyDeclarativeBase):
+    pass
+
+
+class LoadTable_Model(LoadTable_DeclarativeBase):
+    __tablename__ = 'load_table_model'
+    id = Column(Integer, primary_key=True)
+
+
+load_table_table = Table(
+    'load_table_table', LoadTable_DeclarativeBase.metadata,
+    Column('id', primary_key=True)
+)
+
+@pytest.mark.parametrize(
+    "obj, table",
+    [
+        (
+            'test_utils.LoadTable_Model',
+            LoadTable_Model.__table__
+        ),  # String Model
+        (
+            'test_utils.load_table_table',
+            load_table_table
+        ),  # String table
+        (
+            LoadTable_Model,
+            LoadTable_Model.__table__
+        ),  # Model
+        (
+            load_table_table,
+            load_table_table
+        ),  # Table
+    ]
+)
+def test_load_table(obj, table):
+    assert load_table(obj) == table
+
+
+@pytest.mark.parametrize(
+    "stmt, expected",
+    [
+        (
+            _default_insert,
+            _default_insert
+        ),
+        (
+            'scrapy_sql._defaults._default_insert',
+            _default_insert
+        )
+    ]
+)
+def test_load_stmt(stmt, expected):
+    assert load_stmt(stmt) == expected

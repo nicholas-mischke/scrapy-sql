@@ -6,30 +6,28 @@ from scrapy_sql._defaults import (
     _default_insert
 )
 from scrapy_sql.session import ScrapyBulkSession
+from scrapy_sql.utils import load_table, load_stmt
 
 # Scrapy / Twisted Imports
 from scrapy import signals
 from scrapy.extensions.feedexport import IFeedStorage, build_storage
 from scrapy.exceptions import NotConfigured
-from scrapy.utils.misc import create_instance, load_object
+from scrapy.utils.misc import load_object
 from scrapy.utils.python import get_func_args
 
 from twisted.internet import threads
 
 # SQLAlchemy Imports
-from sqlalchemy import create_engine, Table
+from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
-from sqlalchemy.orm.decl_api import DeclarativeAttributeIntercept
 
 # 3rd 🎉 Imports
-from inspect import isclass, isfunction
 from urllib.parse import urlparse
 from zope.interface import implementer
 
 
-from pprint import pprint
-
 class SQLAlchemyInstanceFilter:
+
     def __init__(self, feed_options):
         self.feed_options = feed_options
         # required, so don't use `get` method
@@ -77,29 +75,27 @@ class SQLAlchemyFeedStorage:
         feed_options.setdefault('orm_stmts', {})
         orm_stmts = feed_options.get('orm_stmts')
 
-        Base = load_object(feed_options.get('declarative_base'))
-        sorted_tables = Base.metadata.sorted_tables
+        # Determine custom set values first
+        orm_stmts = {
+            load_table(table): load_stmt(stmt)
+            for table, stmt in orm_stmts.items()
+        }
 
+        # If it isn't custom, set default
         default_stmt = load_object(
             crawler.settings.get('SQLALCHEMY_DEFAULT_ORM_STMT')
             or _default_insert
         )
 
-        # Determine custom set values first
-        _orm_stmts = {}
-        for table, stmt in orm_stmts.items():
-            _orm_stmts[
-                SQLAlchemyFeedStorage._load_table(table)
-            ] = \
-                SQLAlchemyFeedStorage._load_stmt(stmt, table)
-        orm_stmts = _orm_stmts
+        Base = load_object(feed_options.get('declarative_base'))
+        sorted_tables = Base.metadata.sorted_tables
 
-        # If it isn't custom, set default
         for table in sorted_tables:
             orm_stmts.setdefault(
-                SQLAlchemyFeedStorage._load_table(table),
-                SQLAlchemyFeedStorage._load_stmt(default_stmt, table)
+                load_table(table),
+                load_stmt(default_stmt)
             )
+
         feed_options['orm_stmts'] = orm_stmts
 
         # set add in both feed_options and item_export_kwargs
@@ -143,13 +139,12 @@ class SQLAlchemyFeedStorage:
 
         self.Base = load_object(feed_options.get('declarative_base'))
         self.commit = load_object(feed_options.get('commit'))
+        # sessionmaker_kwargs keys: bind, class_, autoflush, expire_on_commit, info
+        self.sessionmaker_kwargs = feed_options.get('sessionmaker_kwargs')
 
         self.engine = create_engine(self.uri, echo=feed_options.get('echo'))
-
-        # sessionmake_kwargs args
-        # bind, class_, autoflush, expire_on_commit, info
-        self.sessionmaker_kwargs = feed_options.get('sessionmaker_kwargs')
         self.sessionmaker_kwargs['bind'] = self.engine
+
         session_cls = load_object(self.sessionmaker_kwargs['class_'])
         self.sessionmaker_kwargs['class_'] = session_cls
         if 'feed_options' in get_func_args(session_cls):
@@ -174,31 +169,3 @@ class SQLAlchemyFeedStorage:
     def close_spider(self, spider):
         self.session.close()
         self.engine.dispose()
-
-    @staticmethod
-    def _load_table(table):
-
-        if isinstance(table, str):
-            table = load_object(table)
-
-        if isinstance(table, DeclarativeAttributeIntercept):
-            return table.__table__
-        elif isinstance(table, Table):
-            return table
-
-        raise TypeError()
-
-    @staticmethod
-    def _load_stmt(stmt, table):
-
-        table = SQLAlchemyFeedStorage._load_table(table)
-
-        if isinstance(stmt, str):
-            smt = load_object(smt)
-
-        if isfunction(stmt):
-            stmt = stmt(table)
-        elif isclass(stmt): # Already what we want
-            pass
-
-        return stmt

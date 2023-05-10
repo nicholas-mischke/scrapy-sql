@@ -146,10 +146,10 @@ class TestScrapyBulkSession:
 
         feed_options = {
             'orm_stmts': {
-                Author.__table__: insert(Author),
-                Tag.__table__:    insert(Tag),
-                Quote.__table__:  insert(Quote),
-                t_quote_tag:      insert(t_quote_tag),
+                Author.__table__: insert,
+                Tag.__table__:    insert,
+                Quote.__table__:  insert,
+                t_quote_tag:      insert,
             },
             'declarative_base': QuotesBase
         }

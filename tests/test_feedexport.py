@@ -2,7 +2,6 @@
 import pytest
 
 import _test_feedexport_helpers
-from _test_feedexport_helpers import LoadTable_Model, load_table_table
 
 from integration_test_project.quotes.items.models import (
     QuotesBase, Author, Tag, Quote, t_quote_tag
@@ -46,7 +45,10 @@ class TestSQLAlchemyInstanceFilter:
 class TestSQLAlchemyFeedStorage:
 
     @pytest.mark.parametrize(
-        "settings_dict, input_feed_options, expected_feed_options, sessionmaker_kwargs_contains_feed_options",
+        (
+            "settings_dict, input_feed_options, "
+            "expected_feed_options, sessionmaker_kwargs_contains_feed_options"
+        ),
         [
             # Verify defaults
             (
@@ -86,22 +88,22 @@ class TestSQLAlchemyFeedStorage:
             feed_options=input_feed_options
         ).feed_options
 
-        # Easier to delete the specific engine instance that's created
         sessionmaker_kwargs = feed_options.get('sessionmaker_kwargs')
 
+        # Easier to delete the specific engine instance that's created
         assert isinstance(sessionmaker_kwargs['bind'], Engine)
         del sessionmaker_kwargs['bind']
 
+        # Add feed_options to kwargs if needed
+        # If not needed make sure the key doesn't exists
         if sessionmaker_kwargs_contains_feed_options:
             assert sessionmaker_kwargs['feed_options'] == feed_options
             del sessionmaker_kwargs['feed_options']
         else:
             with pytest.raises(KeyError):
                 sessionmaker_kwargs['feed_options']
-
         feed_options['sessionmaker_kwargs'] = sessionmaker_kwargs
 
-        #
         assert feed_options == expected_feed_options
 
     @pytest.mark.skip(reason="wrapper func")
@@ -115,27 +117,3 @@ class TestSQLAlchemyFeedStorage:
     @pytest.mark.skip(reason="wrapper func")
     def test_close_spider(self):
         pass
-
-    @pytest.mark.parametrize(
-        "obj, table",
-        [
-            (
-                '_test_feedexport_helpers.LoadTable_Model',
-                LoadTable_Model.__table__
-            ),  # String Model
-            (
-                '_test_feedexport_helpers.load_table_table',
-                load_table_table
-            ),  # String table
-            (
-                LoadTable_Model,
-                LoadTable_Model.__table__
-            ),  # Model
-            (
-                load_table_table,
-                load_table_table
-            ),  # Table
-        ]
-    )
-    def test_under_load_table(self, obj, table):
-        assert SQLAlchemyFeedStorage._load_table(obj) == table

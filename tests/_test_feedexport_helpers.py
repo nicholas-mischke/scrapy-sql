@@ -22,6 +22,7 @@ class DefaultModel(DefaultDeclarativeBase):
     __tablename__ = 'default_table'
     id = Column(Integer, primary_key=True)
 
+default_table = DefaultModel.__table__
 
 default_settings_dict = {
     # Scrapy will issue a warning if this setting isn't sat
@@ -35,7 +36,7 @@ default_expected_feed_options = {
     'declarative_base': DefaultDeclarativeBase,
     'engine_echo': False,
     'sessionmaker_kwargs': {'class_': ScrapyBulkSession},
-    'orm_stmts': {DefaultModel.__table__: _default_insert},
+    'orm_stmts': {default_table: _default_insert},  # Needs to be mocked
     'add': _default_add,
     'item_export_kwargs': {'add': _default_add},
     'commit': _default_commit
@@ -56,8 +57,8 @@ class GlobalSession(Session):
     pass
 
 
-def global_orm_stmt(cls):
-    pass
+def global_orm_stmt(table):
+    return 'GLOBAL ORM STMT'
 
 
 def global_add(session, instance):
@@ -104,8 +105,8 @@ class FeedOptionsSession(Session):
     pass
 
 
-def feed_options_orm_stmt(cls):
-    pass
+def feed_options_orm_stmt(table):
+    return 'FEED OPTIONS ORM STMT'
 
 
 def feed_options_add(session, instance):
@@ -140,24 +141,12 @@ item_export_kwargs_settings_dict = deepcopy(global_settings_dict)
 
 item_export_kwargs_input_feed_options = copy(feed_options_input_feed_options)
 item_export_kwargs_input_feed_options['item_export_kwargs'] = {
-    'add': item_export_kwargs_add}
+    'add': item_export_kwargs_add
+}
 
 item_export_kwargs_expected_feed_options = copy(
-    item_export_kwargs_input_feed_options)
+    item_export_kwargs_input_feed_options
+)
 item_export_kwargs_expected_feed_options['add'] = item_export_kwargs_add
 
 
-# _Load_Table
-class LoadTable_DeclarativeBase(DeclarativeBase, ScrapyDeclarativeBase):
-    pass
-
-
-class LoadTable_Model(LoadTable_DeclarativeBase):
-    __tablename__ = 'load_table_model'
-    id = Column(Integer, primary_key=True)
-
-
-load_table_table = Table(
-    'load_table_table', LoadTable_DeclarativeBase.metadata,
-    Column('id', primary_key=True)
-)
