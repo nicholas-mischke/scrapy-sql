@@ -124,7 +124,7 @@ class SQLAlchemyFeedStorage:
         )
 
         # Set signals for cls
-        crawler.signals.connect(obj.close_spider, signals.spider_closed)
+        # crawler.signals.connect(obj.close_spider, signals.spider_closed)
 
         return obj
 

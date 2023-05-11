@@ -12,8 +12,8 @@ from inspect import isclass, isfunction
 import re
 # here to be imported via: from scrapy_sql.utils import classproperty
 # used in models.py to add a stmt property to a DeclarativeBase subclass
-from descriptors import classproperty
-
+#from descriptors import classproperty
+from django.utils.functional import classproperty
 
 def normalize_whitespace(text):
 

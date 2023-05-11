@@ -1,6 +1,6 @@
 
 # Project Imports
-from .utils import column_value_is_subquery, load_table, load_stmt
+from .utils import column_value_is_subquery, subquery_to_string, load_table, load_stmt
 
 # Scrapy / Twisted Imports
 from scrapy.utils.misc import load_object
@@ -15,7 +15,7 @@ from sqlalchemy.orm.base import ONETOMANY, MANYTOONE, MANYTOMANY  # ONETOONE not
 
 # 3rd 🎉 Imports
 from copy import deepcopy
-
+import logging
 
 
 class ManyToOneBulkDP:
@@ -132,10 +132,17 @@ class ScrapyBulkSession(Session):
         self.orm_stmts = feed_options['orm_stmts']
 
         super().__init__(autoflush=autoflush, *args, **kwargs)
+    
 
     def bulk_commit(self):
 
         table_params = {
+            table: []
+            for table in self.sorted_tables
+        }
+
+        # Best for logging
+        table_instances = {
             table: []
             for table in self.sorted_tables
         }
@@ -152,15 +159,35 @@ class ScrapyBulkSession(Session):
 
                 elif r.direction is MANYTOMANY:
                     dependency_processor = ManyToManyBulkDP(instance, r)
-                    table_params[dependency_processor.secondary].extend(
-                        dependency_processor.prepare_secondary()
-                    )
+                    secondary_table = dependency_processor.secondary
+                    join_columns = dependency_processor.prepare_secondary()
+
+                    table_params[secondary_table].extend(join_columns)
+                    table_instances[secondary_table].extend([tuple(d.values()) for d in join_columns])
 
             table_params[instance.__table__].append(instance.params)
+            table_instances[instance.__table__].append(str(instance))
+        
+        # Logging
+        for table in self.sorted_tables:
+            stmt = self.orm_stmts[table](table) 
+            instances = table_instances[table]
 
-        # TODO add a log here of all prepared instances
-        # allowing them to be recreated via the log file instead of another crawl
+            try:
+                instances_string = '\n'.join(instances)
+            except: # Join Table
 
+                def tuple_of_subqeurires(tup):
+                    my_list = []
+                    for value in tup:
+                        value = subquery_to_string(value) if column_value_is_subquery(value) else value
+                        my_list.append(value)
+                    return str(tuple(my_list))
+                
+                instances_string = '\n'.join([tuple_of_subqeurires(tup) for tup in instances])
+
+            logging.info(f"{stmt}\n{instances_string}")
+   
         # UOW INSERTs / UPSERTs occur on self.commit()
         # We're only interested in BULK INSERTs / UPSERTs here
         # Possibly start a new transaction and commit it instead
@@ -168,7 +195,7 @@ class ScrapyBulkSession(Session):
         self.expunge_all()
 
         for table in self.sorted_tables:
-            statement = self.orm_stmts[table](table) 
+            stmt = self.orm_stmts[table](table) 
             params = table_params[table]
 
             if not params:
@@ -180,8 +207,8 @@ class ScrapyBulkSession(Session):
             ])
 
             if contains_subqueries:
-                self.execute(statement.values(params))
+                self.execute(stmt.values(params))
             else:
-                self.execute(statement, params)
+                self.execute(stmt, params)
 
             self.commit()
