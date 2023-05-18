@@ -43,3 +43,14 @@ def upsert(table, session):
         return insert(table).prefix_with('ON DUPLICATE KEY UPDATE')
     elif database_type == 'postgresql':
         return insert(table).on_conflict_do_update()
+
+
+if __name__ == '__main__':
+    from scrapy.utils.python import get_func_args
+    
+    stmt = insert_ignore
+    if get_func_args(stmt) == ['table', 'session']:
+        print('yes')
+    else:
+        print('no')
+    

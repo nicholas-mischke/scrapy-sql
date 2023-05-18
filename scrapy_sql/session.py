@@ -4,7 +4,7 @@ from .utils import column_value_is_subquery, subquery_to_string, load_table, loa
 
 # Scrapy / Twisted Imports
 from scrapy.utils.misc import load_object
-from scrapy.utils.python import flatten
+from scrapy.utils.python import flatten, get_func_args
 
 # SQLAlchemy Imports
 from sqlalchemy.orm import Session
@@ -207,7 +207,14 @@ class ScrapyBulkSession(Session):
         self.expunge_all()
 
         for table in self.sorted_tables:
-            stmt = self.orm_stmts[table](table, self) # get the built-in SQLAlchemy ORM statement
+            stmt = self.orm_stmts[table]
+            stmt_args = get_func_args(stmt)
+            logging.info(f"\n\n\n\n\nstmt_args: {stmt_args}\n\n\n\n\n")
+            if stmt_args == ['table', 'session']: # from scrapy_sql.stmts.py
+                stmt = stmt(table, self)
+            else:
+                stmt = stmt(table)
+            
             params = table_params[table]
 
             if not params:
