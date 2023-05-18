@@ -17,7 +17,6 @@ from sqlalchemy import Column, Integer, Table
 class DefaultDeclarativeBase(DeclarativeBase, ScrapyDeclarativeBase):
     pass
 
-
 class DefaultModel(DefaultDeclarativeBase):
     __tablename__ = 'default_table'
     id = Column(Integer, primary_key=True)

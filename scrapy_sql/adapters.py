@@ -12,6 +12,7 @@ from itemadapter.adapter import AdapterInterface  # Basically scrapy...
 import sqlalchemy
 from sqlalchemy import func, select
 from sqlalchemy.inspection import inspect
+from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy.orm.attributes import (
     del_attribute,
     get_attribute,
@@ -124,7 +125,8 @@ class SQLAlchemyInstanceAdapter(_MixinColumnSQLAlchemyAdapter, AdapterInterface)
         return KeysView(self.asdict().keys())
 
 
-class ScrapyDeclarativeBase:
+class ScrapyDeclarativeBase: #(DeclarativeBase):
+    # __abstract__ = True # Make sure SQLAlchemy doesn't try and create a table from this cls
 
     @classproperty
     def sorted_tables(cls):

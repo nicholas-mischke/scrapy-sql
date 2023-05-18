@@ -179,7 +179,10 @@ class ScrapyBulkSession(Session):
         
         # Logging
         for table in self.sorted_tables:
-            stmt = self.orm_stmts[table](table) 
+            try:
+                stmt = self.orm_stmts[table](table)
+            except TypeError:
+                stmt = self.orm_stmts[table](table, self)
             instances = table_instances[table]
             
             if len(instances) == 0:

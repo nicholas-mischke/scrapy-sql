@@ -1,9 +1,11 @@
 
+from sqlalchemy.orm import DeclarativeBase
 from scrapy_sql import ScrapyDeclarativeBase
+
 from scrapy_sql.subquery_item import SubqueryItem, Field
 
 from sqlalchemy import Column, Date, ForeignKey, Integer, String, Table, Text
-from sqlalchemy.orm import DeclarativeBase, relationship
+from sqlalchemy.orm import relationship
 
 
 class QuotesBase(DeclarativeBase, ScrapyDeclarativeBase):

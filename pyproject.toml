@@ -1,11 +1,12 @@
 [tool.poetry]
 name = "scrapy-sql"
-version = "0.1.0"
+version = "1.0.0"
 description = "Combine SQLAlchemy with Scrapy"
-authors = ["Nicholas Mischke"]
+authors = ["Nicholas Mischke <nmischkework@proton.me>"]
 license = "MIT"
 readme = "README.md"
 packages = [{include = "scrapy_sql"}]
+repository = "https://github.com/nicholas-mischke/scrapy-sql"
 
 [tool.poetry.dependencies]
 python = "^3.10"
@@ -19,3 +20,6 @@ django = "^4.2.1"
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+sources = [
+    {name = "pypi scrapy-sql", url = "https://pypi.org/project/scrapy-sql/"},
+]
