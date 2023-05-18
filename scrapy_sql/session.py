@@ -7,7 +7,6 @@ from scrapy.utils.misc import load_object
 from scrapy.utils.python import flatten
 
 # SQLAlchemy Imports
-from sqlalchemy import Table
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import instance_state
 from sqlalchemy.orm.base import ONETOMANY, MANYTOONE, MANYTOMANY  # ONETOONE not listed
@@ -40,7 +39,10 @@ class ManyToOneBulkDP:
         If both the local and remote columns have values of None,
         generate a subquery to populate the value while inserting.
         """
-
+        
+        if self.related_instance is None:
+            return
+        
         for pair in self.relationship.local_remote_pairs:
             local_column, remote_column = pair
 
@@ -90,6 +92,10 @@ class ManyToManyBulkDP:
         Determine the subqueries necessary to insert the columns
         of a join table
         """
+        
+        if len(self.related_instances) == 0:
+            return
+        
         params = []
 
         param = {}
@@ -161,6 +167,9 @@ class ScrapyBulkSession(Session):
                     dependency_processor = ManyToManyBulkDP(instance, r)
                     secondary_table = dependency_processor.secondary
                     join_columns = dependency_processor.prepare_secondary()
+                    
+                    if join_columns is None:
+                        continue
 
                     table_params[secondary_table].extend(join_columns)
                     table_instances[secondary_table].extend([tuple(d.values()) for d in join_columns])
@@ -172,6 +181,9 @@ class ScrapyBulkSession(Session):
         for table in self.sorted_tables:
             stmt = self.orm_stmts[table](table) 
             instances = table_instances[table]
+            
+            if len(instances) == 0:
+                continue
 
             try:
                 instances_string = '\n'.join(instances)
@@ -195,7 +207,7 @@ class ScrapyBulkSession(Session):
         self.expunge_all()
 
         for table in self.sorted_tables:
-            stmt = self.orm_stmts[table](table) 
+            stmt = self.orm_stmts[table](table, self) # get the built-in SQLAlchemy ORM statement
             params = table_params[table]
 
             if not params:
@@ -211,4 +223,4 @@ class ScrapyBulkSession(Session):
             else:
                 self.execute(stmt, params)
 
-            self.commit()
+            self.commit() # INSERT rows table by table in sorted order

@@ -70,12 +70,5 @@ def load_table(table):
 def load_stmt(stmt):
     if isinstance(stmt, str):
         stmt = load_object(stmt)
-
     return stmt
 
-    # if isfunction(stmt):
-    #     stmt = stmt(table)
-    # elif isclass(stmt):  # Already what we want
-    #     pass
-
-    # return stmt
