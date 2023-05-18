@@ -7,17 +7,9 @@ def get_database_type(session):
     return session.bind.dialect.name
 
 
-def insert(table, session):
-    """
-    Provides a SQLAlchemy INSERT statement that is compatible with the
-    SQLite, MySQL, and PostgreSQL dialects.
-    """
-    return insert(table)
-
-
 def insert_ignore(table, session):
     """
-    Provides a SQLAlchemy INSERT IGNORE statement that is compatible with the
+    Provides a SQLAlchemy INSERT OR IGNORE statement that is compatible with the
     SQLite, MySQL, and PostgreSQL dialects.
     """
     database_type = get_database_type(session)
@@ -30,9 +22,9 @@ def insert_ignore(table, session):
         return insert(table).on_conflict_do_nothing()
 
 
-def upsert(table, session):
+def replace(table, session):
     """
-    Provides a SQLAlchemy UPSERT statement that is compatible with the
+    Provides a SQLAlchemy OR REPLACE statement that is compatible with the
     SQLite, MySQL, and PostgreSQL dialects.
     """
     database_type = get_database_type(session)
@@ -44,13 +36,3 @@ def upsert(table, session):
     elif database_type == 'postgresql':
         return insert(table).on_conflict_do_update()
 
-
-if __name__ == '__main__':
-    from scrapy.utils.python import get_func_args
-    
-    stmt = insert_ignore
-    if get_func_args(stmt) == ['table', 'session']:
-        print('yes')
-    else:
-        print('no')
-    
