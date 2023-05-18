@@ -207,16 +207,12 @@ class ScrapyBulkSession(Session):
         self.expunge_all()
 
         for table in self.sorted_tables:
-            stmt = self.orm_stmts[table]
-            stmt_args = get_func_args(stmt)
-            logging.info(f"\n\n\n\n\nstmt_args: {stmt_args}\n\n\n\n\n")
-            if stmt_args == ['table', 'session']: # from scrapy_sql.stmts.py
-                stmt = stmt(table, self)
-            else:
-                stmt = stmt(table)
+            try:
+                stmt = self.orm_stmts[table](table)
+            except TypeError:
+                stmt = self.orm_stmts[table](table, self)
             
             params = table_params[table]
-
             if not params:
                 continue
 
